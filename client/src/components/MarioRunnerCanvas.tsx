@@ -268,7 +268,9 @@ export const MarioRunnerCanvas: React.FC<MarioRunnerProps> = ({
         if (p.life <= 0) s.particles.splice(i, 1);
       }
 
-      animFrameRef.current = requestAnimationFrame(render);
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        animFrameRef.current = requestAnimationFrame(render);
+      }
     };
 
     render();
@@ -286,6 +288,10 @@ export const MarioRunnerCanvas: React.FC<MarioRunnerProps> = ({
         width={960}
         height={height}
         onClick={interactive ? triggerJump : undefined}
+        onKeyDown={interactive ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); triggerJump(); } } : undefined}
+        role={interactive ? 'button' : 'img'}
+        aria-label={interactive ? 'Jump in the arcade scene' : 'Animated arcade scene'}
+        tabIndex={interactive ? 0 : undefined}
         className="w-full block pixelated cursor-pointer"
         style={{ height }}
       />
@@ -302,83 +308,29 @@ export const MarioRunnerCanvas: React.FC<MarioRunnerProps> = ({
 // RETRO PIXEL SPRITE RENDERERS (NES Style procedural 8-bit drawing)
 // =========================================================================
 
+// Original DCC quest explorer: hood, bright visor and utility jacket.
 function drawPixelMario(ctx: CanvasRenderingContext2D, x: number, y: number, isJumping: boolean, tick: number, isVictory: boolean | null) {
-  const p = 2; // pixel scale
-
-  // If victory, draw Mario facing front with arms up
-  if (isVictory) {
-    ctx.fillStyle = '#E52521'; // Red Hat
-    ctx.fillRect(x + 3 * p, y, 6 * p, 2 * p);
-    ctx.fillStyle = '#FCD8A8'; // Face
-    ctx.fillRect(x + 3 * p, y + 2 * p, 6 * p, 3 * p);
-    ctx.fillStyle = '#000'; // Eyes
-    ctx.fillRect(x + 4 * p, y + 3 * p, p, p);
-    ctx.fillRect(x + 7 * p, y + 3 * p, p, p);
-    // Overalls
-    ctx.fillStyle = '#0022AA';
-    ctx.fillRect(x + 3 * p, y + 5 * p, 6 * p, 6 * p);
-    // Arms up
-    ctx.fillStyle = '#E52521';
-    ctx.fillRect(x + p, y + 2 * p, 2 * p, 4 * p);
-    ctx.fillRect(x + 9 * p, y + 2 * p, 2 * p, 4 * p);
-    ctx.fillStyle = '#FCD8A8'; // Hands
-    ctx.fillRect(x + p, y + p, 2 * p, 2 * p);
-    ctx.fillRect(x + 9 * p, y + p, 2 * p, 2 * p);
-    return;
-  }
-
-  // Running frames: cycle between 3 frames
-  const runFrame = isJumping ? 3 : Math.floor(tick / 6) % 3;
-
-  // Red Hat & Hair
-  ctx.fillStyle = '#E52521';
-  ctx.fillRect(x + 3 * p, y, 6 * p, 2 * p);
-  ctx.fillRect(x + 2 * p, y + p, 8 * p, p);
-
-  // Face
-  ctx.fillStyle = '#FCD8A8';
-  ctx.fillRect(x + 4 * p, y + 2 * p, 4 * p, 3 * p);
-  ctx.fillStyle = '#794000'; // Hair/Moustache
-  ctx.fillRect(x + 2 * p, y + 2 * p, 2 * p, 2 * p);
-  ctx.fillRect(x + 6 * p, y + 3 * p, 3 * p, p);
-  ctx.fillStyle = '#000'; // Eye
-  ctx.fillRect(x + 6 * p, y + 2 * p, p, p);
-
-  // Red Shirt & Blue Overalls
-  ctx.fillStyle = '#E52521';
-  ctx.fillRect(x + 2 * p, y + 5 * p, 6 * p, 3 * p);
-  ctx.fillStyle = '#0022AA';
-  ctx.fillRect(x + 3 * p, y + 6 * p, 5 * p, 5 * p);
-  ctx.fillStyle = '#FBD000'; // Yellow Buttons
-  ctx.fillRect(x + 4 * p, y + 7 * p, p, p);
-
-  // Arms
-  if (isJumping) {
-    // Punching air reaching up
-    ctx.fillStyle = '#FCD8A8';
-    ctx.fillRect(x + 6 * p, y - 2 * p, 2 * p, 2 * p);
-    ctx.fillStyle = '#E52521';
-    ctx.fillRect(x + 5 * p, y, 2 * p, 3 * p);
-  } else {
-    ctx.fillStyle = '#FCD8A8';
-    ctx.fillRect(x + (runFrame === 1 ? 7 : 8) * p, y + 7 * p, 2 * p, 2 * p);
-  }
-
-  // Legs & Shoes
-  ctx.fillStyle = '#794000'; // Brown Shoes
-  if (isJumping) {
-    ctx.fillRect(x + p, y + 11 * p, 4 * p, 2 * p);
-    ctx.fillRect(x + 6 * p, y + 10 * p, 4 * p, 2 * p);
-  } else if (runFrame === 0) {
-    ctx.fillRect(x + 2 * p, y + 11 * p, 3 * p, 2 * p);
-    ctx.fillRect(x + 6 * p, y + 11 * p, 3 * p, 2 * p);
-  } else if (runFrame === 1) {
-    ctx.fillRect(x + p, y + 10 * p, 3 * p, 2 * p);
-    ctx.fillRect(x + 7 * p, y + 11 * p, 4 * p, 2 * p);
-  } else {
-    ctx.fillRect(x + 3 * p, y + 11 * p, 4 * p, 2 * p);
-    ctx.fillRect(x + 6 * p, y + 10 * p, 3 * p, 2 * p);
-  }
+  const step = Math.floor(tick / 6) % 2;
+  ctx.fillStyle = '#DC2626';
+  ctx.fillRect(x + 6, y, 20, 7); // hood
+  ctx.fillStyle = '#7F1D1D';
+  ctx.fillRect(x + 4, y + 7, 24, 5);
+  ctx.fillStyle = '#F5C99C';
+  ctx.fillRect(x + 6, y + 12, 20, 9);
+  ctx.fillStyle = '#60D5E9';
+  ctx.fillRect(x + 6, y + 12, 20, 5); // visor
+  ctx.fillStyle = '#0F172A';
+  ctx.fillRect(x + 11, y + 15, 10, 2);
+  ctx.fillStyle = '#DC2626';
+  ctx.fillRect(x + 4, y + 21, 24, 12); // jacket
+  ctx.fillStyle = '#FACC15';
+  ctx.fillRect(x + 14, y + 23, 5, 7); // badge
+  ctx.fillStyle = '#F5C99C';
+  ctx.fillRect(x + (isVictory ? 0 : 1), y + (isVictory || isJumping ? 14 : 24), 5, 8);
+  ctx.fillRect(x + 28, y + (isVictory || isJumping ? 14 : 24), 5, 8);
+  ctx.fillStyle = '#172554';
+  ctx.fillRect(x + 6 + (step && !isJumping ? -3 : 0), y + 33, 9, 7);
+  ctx.fillRect(x + 18 + (step && !isJumping ? 3 : 0), y + 33, 9, 7);
 }
 
 function drawQuestionBlock(ctx: CanvasRenderingContext2D, x: number, y: number, isHit: boolean, tick: number) {
@@ -474,34 +426,25 @@ function drawBooGhost(ctx: CanvasRenderingContext2D, x: number, y: number, tick:
   ctx.fillRect(x + 14, drawY + 22, 4, 3);
 }
 
+// Original final guardian: a purple castle automaton, not a licensed game sprite.
 function drawBowserBoss(ctx: CanvasRenderingContext2D, x: number, y: number, tick: number) {
-  const breath = Math.sin(tick * 0.1) * 3;
-  // Shell
-  ctx.fillStyle = '#004D00';
-  ctx.fillRect(x + 10, y + 10, 40, 36);
-  // Spikes
-  ctx.fillStyle = '#FFF';
-  ctx.fillRect(x + 6, y + 12, 4, 6);
-  ctx.fillRect(x + 12, y + 4, 6, 6);
-  ctx.fillRect(x + 30, y + 4, 6, 6);
-  // Green Head
-  ctx.fillStyle = '#00A800';
-  ctx.fillRect(x - 14, y + 10 + breath, 28, 24);
-  // Horns
-  ctx.fillStyle = '#E52521';
-  ctx.fillRect(x - 8, y + 2 + breath, 4, 8);
-  ctx.fillRect(x + 8, y + 2 + breath, 4, 8);
-  // Fierce Glowing Red Eyes
-  ctx.fillStyle = '#E52521';
-  ctx.fillRect(x - 8, y + 16 + breath, 5, 4);
-  ctx.fillStyle = '#FFF';
-  ctx.fillRect(x - 6, y + 16 + breath, 2, 2);
-  // Jaws / Snout
-  ctx.fillStyle = '#FCD8A8';
-  ctx.fillRect(x - 22, y + 22 + breath, 20, 14);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 28 + breath, 16, 6); // open mouth
-  ctx.fillStyle = '#FFF'; // fangs
-  ctx.fillRect(x - 18, y + 28 + breath, 3, 3);
-  ctx.fillRect(x - 8, y + 28 + breath, 3, 3);
+  const bob = Math.sin(tick * 0.1) * 2;
+  ctx.fillStyle = '#3B0764';
+  ctx.fillRect(x, y + 12 + bob, 58, 44);
+  ctx.fillStyle = '#6B21A8';
+  ctx.fillRect(x + 6, y + 2 + bob, 46, 22);
+  ctx.fillStyle = '#FACC15';
+  ctx.fillRect(x + 12, y + 8 + bob, 8, 5);
+  ctx.fillRect(x + 38, y + 8 + bob, 8, 5);
+  ctx.fillStyle = '#0F172A';
+  ctx.fillRect(x + 16, y + 10 + bob, 3, 3);
+  ctx.fillRect(x + 42, y + 10 + bob, 3, 3);
+  ctx.fillStyle = '#F97316';
+  ctx.fillRect(x + 20, y + 29 + bob, 18, 6);
+  ctx.fillStyle = '#A78BFA';
+  ctx.fillRect(x - 8, y + 25 + bob, 8, 20);
+  ctx.fillRect(x + 58, y + 25 + bob, 8, 20);
+  ctx.fillStyle = '#1E1B4B';
+  ctx.fillRect(x + 8, y + 54 + bob, 16, 9);
+  ctx.fillRect(x + 34, y + 54 + bob, 16, 9);
 }

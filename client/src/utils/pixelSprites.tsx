@@ -1,84 +1,25 @@
 import React from 'react';
 
-// 8-bit Pixel Avatar: Mario
-export const MarioSprite: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={`pixelated ${className}`}>
-    {/* Red Hat & Shirt */}
-    <rect x="3" y="1" width="5" height="1" fill="#E52521" />
-    <rect x="2" y="2" width="9" height="1" fill="#E52521" />
-    <rect x="2" y="3" width="3" height="1" fill="#794000" />
-    <rect x="5" y="3" width="2" height="1" fill="#FCD8A8" />
-    <rect x="7" y="3" width="1" height="1" fill="#000" />
-    <rect x="8" y="3" width="1" height="1" fill="#FCD8A8" />
-    <rect x="1" y="4" width="1" height="1" fill="#794000" />
-    <rect x="2" y="4" width="1" height="1" fill="#FCD8A8" />
-    <rect x="3" y="4" width="1" height="1" fill="#794000" />
-    <rect x="4" y="4" width="3" height="1" fill="#FCD8A8" />
-    <rect x="7" y="4" width="1" height="1" fill="#000" />
-    <rect x="8" y="4" width="3" height="1" fill="#FCD8A8" />
-    <rect x="1" y="5" width="1" height="1" fill="#794000" />
-    <rect x="2" y="5" width="1" height="1" fill="#FCD8A8" />
-    <rect x="3" y="5" width="2" height="1" fill="#794000" />
-    <rect x="5" y="5" width="3" height="1" fill="#FCD8A8" />
-    <rect x="8" y="5" width="4" height="1" fill="#794000" />
-    <rect x="1" y="6" width="2" height="1" fill="#794000" />
-    <rect x="3" y="6" width="6" height="1" fill="#FCD8A8" />
-    {/* Red Body & Blue Overalls */}
-    <rect x="2" y="7" width="2" height="1" fill="#E52521" />
-    <rect x="4" y="7" width="1" height="1" fill="#0022AA" />
-    <rect x="5" y="7" width="2" height="1" fill="#E52521" />
-    <rect x="7" y="7" width="1" height="1" fill="#0022AA" />
-    <rect x="8" y="7" width="2" height="1" fill="#E52521" />
-    <rect x="1" y="8" width="3" height="1" fill="#E52521" />
-    <rect x="4" y="8" width="1" height="1" fill="#0022AA" />
-    <rect x="5" y="8" width="2" height="1" fill="#E52521" />
-    <rect x="7" y="8" width="1" height="1" fill="#0022AA" />
-    <rect x="8" y="8" width="3" height="1" fill="#E52521" />
-    <rect x="0" y="9" width="4" height="1" fill="#E52521" />
-    <rect x="4" y="9" width="4" height="1" fill="#0022AA" />
-    <rect x="8" y="9" width="4" height="1" fill="#E52521" />
-    {/* Hands & Overalls */}
-    <rect x="0" y="10" width="2" height="1" fill="#FCD8A8" />
-    <rect x="2" y="10" width="1" height="1" fill="#E52521" />
-    <rect x="3" y="10" width="1" height="1" fill="#0022AA" />
-    <rect x="4" y="10" width="1" height="1" fill="#FBD000" />
-    <rect x="5" y="10" width="2" height="1" fill="#0022AA" />
-    <rect x="7" y="10" width="1" height="1" fill="#FBD000" />
-    <rect x="8" y="10" width="1" height="1" fill="#0022AA" />
-    <rect x="9" y="10" width="1" height="1" fill="#E52521" />
-    <rect x="10" y="10" width="2" height="1" fill="#FCD8A8" />
-    <rect x="0" y="11" width="3" height="1" fill="#FCD8A8" />
-    <rect x="3" y="11" width="6" height="1" fill="#0022AA" />
-    <rect x="9" y="11" width="3" height="1" fill="#FCD8A8" />
-    {/* Pants & Shoes */}
-    <rect x="3" y="12" width="6" height="1" fill="#0022AA" />
-    <rect x="2" y="13" width="3" height="1" fill="#794000" />
-    <rect x="7" y="13" width="3" height="1" fill="#794000" />
-    <rect x="1" y="14" width="4" height="1" fill="#794000" />
-    <rect x="7" y="14" width="4" height="1" fill="#794000" />
-  </svg>
-);
-
-// 8-bit Pixel Avatar: Luigi
-export const LuigiSprite: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={`pixelated ${className}`}>
-    <rect x="3" y="1" width="5" height="1" fill="#00A800" />
-    <rect x="2" y="2" width="9" height="1" fill="#00A800" />
-    <rect x="2" y="3" width="3" height="1" fill="#004D00" />
-    <rect x="5" y="3" width="2" height="1" fill="#FCD8A8" />
-    <rect x="7" y="3" width="1" height="1" fill="#000" />
-    <rect x="8" y="3" width="1" height="1" fill="#FCD8A8" />
-    <rect x="2" y="4" width="6" height="1" fill="#FCD8A8" />
-    <rect x="2" y="7" width="2" height="1" fill="#00A800" />
-    <rect x="4" y="7" width="1" height="1" fill="#0022AA" />
-    <rect x="5" y="7" width="2" height="1" fill="#00A800" />
-    <rect x="7" y="7" width="1" height="1" fill="#0022AA" />
-    <rect x="8" y="7" width="2" height="1" fill="#00A800" />
-    <rect x="3" y="10" width="6" height="3" fill="#0022AA" />
-    <rect x="2" y="13" width="3" height="2" fill="#794000" />
-    <rect x="7" y="13" width="3" height="2" fill="#794000" />
-  </svg>
-);
+// Original arcade explorers. Legacy export names keep existing view imports stable.
+const ExplorerSprite: React.FC<{ size: number; className: string; tone: 'red' | 'green' }> = ({ size, className, tone }) => {
+  const jacket = tone === 'red' ? '#DC2626' : '#16A34A';
+  const dark = tone === 'red' ? '#7F1D1D' : '#14532D';
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" role="img" aria-label={tone === 'red' ? 'Red quest explorer' : 'Green quest explorer'} className={`pixelated ${className}`}>
+    <rect x="4" y="1" width="8" height="2" fill={jacket} />
+    <rect x="3" y="3" width="10" height="2" fill={dark} />
+    <rect x="4" y="5" width="8" height="4" fill="#F5C99C" />
+    <rect x="4" y="5" width="8" height="2" fill="#60D5E9" />
+    <rect x="5" y="6" width="6" height="1" fill="#0F172A" />
+    <rect x="3" y="9" width="10" height="4" fill={jacket} />
+    <rect x="6" y="9" width="4" height="3" fill="#FACC15" />
+    <rect x="2" y="10" width="2" height="3" fill="#F5C99C" />
+    <rect x="12" y="10" width="2" height="3" fill="#F5C99C" />
+    <rect x="4" y="13" width="3" height="2" fill="#172554" />
+    <rect x="9" y="13" width="3" height="2" fill="#172554" />
+  </svg>;
+};
+export const MarioSprite: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => <ExplorerSprite size={size} className={className} tone="red" />;
+export const LuigiSprite: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => <ExplorerSprite size={size} className={className} tone="green" />;
 
 // 8-bit Question Block
 export const QuestionBlock: React.FC<{ size?: number; className?: string; isHit?: boolean }> = ({

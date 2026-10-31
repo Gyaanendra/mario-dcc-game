@@ -1,18 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { chiptune } from '../audio/chiptune';
 import { QuestionBlock } from '../utils/pixelSprites';
 
 interface QuestionBlockPhysicsProps {
   onTap?: () => void;
-  triggerBurst?: boolean;
+  triggerBurst?: number;
   disabled?: boolean;
   size?: number;
 }
 
 export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
   onTap,
-  triggerBurst = false,
+  triggerBurst = 0,
   disabled = false,
   size = 64
 }) => {
@@ -26,6 +26,7 @@ export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
   // Initialize Matter.js canvas for coin particle fountain
   useEffect(() => {
     if (!canvasRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const { Engine, Render, Runner, Bodies, Composite } = Matter;
 
@@ -70,7 +71,7 @@ export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
   }, []);
 
   // Spawn coin burst
-  const spawnCoins = (count = 12) => {
+  const spawnCoins = useCallback((count = 12) => {
     if (!engineRef.current) return;
     const { Bodies, Composite, Body } = Matter;
     const spawnX = 140;
@@ -107,9 +108,9 @@ export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
         Composite.remove(engineRef.current.world, newCoins);
       }
     }, 2500);
-  };
+  }, []);
 
-  const handleTap = () => {
+  const handleTap = useCallback(() => {
     if (disabled) return;
     setIsHit(true);
     chiptune.playCoin();
@@ -125,14 +126,14 @@ export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
     setTimeout(() => {
       setIsHit(false);
     }, 150);
-  };
+  }, [disabled, onTap, spawnCoins]);
 
   // Trigger burst from props
   useEffect(() => {
-    if (triggerBurst) {
-      handleTap();
-    }
-  }, [triggerBurst]);
+    if (!triggerBurst) return;
+    const frame = requestAnimationFrame(handleTap);
+    return () => cancelAnimationFrame(frame);
+  }, [triggerBurst, handleTap]);
 
   return (
     <div
@@ -149,14 +150,17 @@ export const QuestionBlockPhysics: React.FC<QuestionBlockPhysicsProps> = ({
       />
 
       {/* Tap-able Question Block Sprite */}
-      <div
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label="Tap question block for a coin animation"
         onClick={handleTap}
         className={`relative z-20 cursor-pointer active:scale-95 transition-transform ${
           disabled ? 'opacity-70 cursor-not-allowed' : ''
         }`}
       >
         <QuestionBlock size={size} isHit={isHit} />
-      </div>
+      </button>
 
       <div className="absolute bottom-2 text-xs font-pixel text-yellow-400/80 tracking-widest uppercase">
         {disabled ? 'LOCKED' : 'TAP FOR LUCK'}

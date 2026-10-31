@@ -1,9 +1,9 @@
 import fastify from 'fastify';
-import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import fs from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 import { handleWebSocketConnection } from './ws.js';
 import { dbManager } from './db.js';
 
@@ -17,14 +17,13 @@ const app = fastify({
 });
 
 async function start() {
-  await app.register(cors, {
-    origin: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-  });
+  if (!process.env.HOST_PIN || process.env.HOST_PIN.length < 12) {
+    throw new Error('Set a unique HOST_PIN of at least 12 characters before starting the server');
+  }
 
   await app.register(fastifyWebsocket, {
     options: {
-      maxPayload: 1048576 // 1MB
+      maxPayload: 16384
     }
   });
 
@@ -49,6 +48,7 @@ async function start() {
     const counts = dbManager.getPlayerCount();
     return {
       status: 'ok',
+      testMode: process.env.TEST_MODE === '1',
       event: 'Mario Career Quest - Bennett University DCC',
       uptimeSeconds: Math.floor(process.uptime()),
       memoryMB: {
@@ -61,14 +61,21 @@ async function start() {
   });
 
   // REST Leaderboard
-  app.get('/api/leaderboard', async (req: any) => {
-    const level = Number(req.query?.level) || 1;
-    const limit = Number(req.query?.limit) || 50;
-    return dbManager.getLeaderboard(level, limit);
+  app.get('/api/leaderboard', async (req: any, reply) => {
+    const level = [1, 2, 3].includes(Number(req.query?.level)) ? Number(req.query.level) : 1;
+    const limit = Math.min(50, Math.max(1, Number(req.query?.limit) || 15));
+    if (level === 3 && dbManager.getGameState().game_status !== 'PODIUM_WINNERS')
+      return reply.code(403).send({ error: 'Final scores are not revealed yet' });
+    return dbManager.getLeaderboard(level, limit).map(({ id, student_id, session_token_hash, ...safe }) =>
+      level === 3 ? safe : { ...safe, level3_score: 0 });
   });
 
   // REST Questions Overview for Host
-  app.get('/api/questions', async (req: any) => {
+  app.get('/api/questions', async (req: any, reply) => {
+    const provided = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+    const expected = process.env.HOST_PIN!;
+    const a = Buffer.from(provided), b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(401).send({ error: 'Host authentication required' });
     const level = Number(req.query?.level) || 1;
     return dbManager.getQuestionsForLevel(level, true);
   });

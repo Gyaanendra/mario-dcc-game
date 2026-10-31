@@ -1,114 +1,96 @@
-# 🍄 Mario Career Quest: Mask On. Level Up.
-### Dean Career Cloud (DCC) | School of Computer Science Engineering & Technology (SCSET) | Bennett University
+# Mario Career Quest — event game
 
-An ultra-lightweight, real-time multiplayer gamified career quiz & simulation engine tailored specifically for the **Mario Career Quest** event (2 November 2026, ~150 First- & Second-Year B.Tech students).
+A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett University on **2 November 2026**. Students run and jump on phones at `/play`; a question appears only after a player stands on a pipe. In the lobby, a self-paced pipe run uses the first ten seeded sample career questions: answer one, see immediate feedback, and continue to the next pipe. This practice progress is saved separately and never changes live-event scores. The operator controls scored rounds at `/host`, and the lecture hall watches `/projector`. The game is designed for about 150 individual participants on a single Node server with SQLite. The game world uses the supplied Bennett/DCC background artwork and mechanics from the [referenced platformer pull request](https://github.com/Gyaanendra/mario-dcc-game/pull/1).
 
-Engineered to run seamlessly on a **budget 1-Core vCPU, 1 GB RAM VPS** with zero lag, instant session resumption, client-side physics, and an embedded SQLite database.
+## Event flow
 
----
+| Time | Activity |
+| --- | --- |
+| 0:00–0:15 | Registration and QR join |
+| 0:15–0:25 | Rules, scoring, practice question |
+| 0:25–1:05 | Level 1: 15 career basics questions |
+| 1:05–1:15 | Verify scores; top 50 advance |
+| 1:15–2:05 | Level 2: 20 myths, decisions, and red flags |
+| 2:05–2:15 | Verify scores; top 10 advance |
+| 2:15–2:55 | Final career case; up to two minutes per finalist |
+| 2:55–3:00 | Verify winners and reveal podium |
 
-## 🎮 The Three Synchronized Views
+The world has no collectible coins or question-mark blocks; pipe contact opens questions. Each correct quiz answer earns **100 points plus up to 20 speed points** measured by the server. Practice and sudden-death questions earn no quiz points. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
 
-| View | Route | Target Device | Description |
-| :--- | :--- | :--- | :--- |
-| **📱 Player Mobile Controller** | `/` or `/join` | Smartphones & Laptops | Responsive arcade gamepad touch buttons, avatar picker, tap-for-luck Question Block with haptic feedback, real-time coin counter, zero-latency 8-bit procedural sound. |
-| **📽️ Stage Projector Arena** | `/projector` | 16:9 Lecture Hall Screen | High-contrast retro presentation with dynamic Join QR Code, Question Blocks, animated countdown timers, live class choice distribution charts, stage leaderboards, animated Bowser boss fight, and 3-step victory podium with confetti. |
-| **🎛️ Host Control Center** | `/host` *(PIN: `DCC2026`)* | Host / Tech Operator Laptop | Master controls to start/pause/resume questions, extend timers, reveal answers, execute automated cut-offs (Top 50 for Level 2, Top 10 for Level 3), trigger sudden-death tiebreakers, and input judge rubric scores (0–5 for Clarity, Reasoning, Judgement, Communication). |
+## Requirements and setup
 
----
+- Node.js **24 LTS** and npm. The repository has `.nvmrc` and package engine declarations.
+- A Linux VPS with persistent storage; the planned 1 vCPU / 1 GB server must pass rehearsal load checks.
+- A public HTTPS URL with WebSocket (`wss`) forwarding to the same app port. The QR must resolve from both venue Wi-Fi and mobile data.
+- `HOST_PIN` must be a unique secret of at least 12 characters. There is no built-in default. Set `JUDGE_NAMES` to a comma-separated roster before judging begins; it defaults to one `DCC Judge`.
 
-## ⚡ Technical Architecture & 1-Core 1GB Optimization
-
-- **Runtime & Backend Engine**: Node.js (v20+ / v26) + Fastify (ultra-low overhead, sub-millisecond request routing).
-- **Embedded Database**: Native Node.js `DatabaseSync` (`node:sqlite`) running in **WAL mode (`journal_mode = WAL; synchronous = NORMAL;`)** with zero external C++ build tool dependencies.
-- **Real-Time WebSockets**: High-throughput `ws` engine broadcasting compact JSON packets.
-- **Client-Side Physics**: **Matter.js** 2D rigid-body coin particle explosions and bouncy Question Blocks executed purely on the user's phone/projector GPU/CPU — keeping the 1-core server CPU load under 10%.
-- **Zero-Asset Chiptune Audio**: Procedural 8-bit sound synthesis via the **Web Audio API** (`client/src/audio/chiptune.ts`). Authentic Mario coin pings, 1-Up fanfares, jump sounds, ticking clocks, and Bowser roars generated in code with 0 KB bandwidth consumption.
-- **Anti-Disconnection Session Resumption**: When a participant joins, a unique session UUID is stored in `localStorage`. If the student refreshes the browser, locks their phone, or switches from campus Wi-Fi to 4G/5G, the client automatically executes a `CLIENT_RECONNECT` handshake. The server restores their exact state, coins, active question, and locked answer.
-
-### 📊 Benchmark Load Test Results (150 Concurrent Players)
-- **Active Connections**: 150 simultaneous WebSockets
-- **Burst Submissions**: 150 answers processed in under 6.5s
-- **Server RSS Memory**: **81 MB** (out of 1024 MB VPS capacity — **>910 MB free**)
-- **Server Heap Used**: **18 MB**
-- **Peak CPU Usage**: < 12% of a single vCPU core
-
----
-
-## 🚀 Quick Start Guide
-
-### 1. Prerequisites
-- Node.js v20+ or v26+
-- npm v10+
-
-### 2. Installation
-```bash
-# Clone the repository and install dependencies
-cd server && npm install
-cd ../client && npm install
-```
-
-### 3. Build the Frontend Static Assets
-```bash
-npm run client:build
-```
-
-### 4. Seed the Event Question Bank
-Populates all 15 Level 1 career questions, 20 Level 2 myth-busting & red flag questions, and 2 sudden-death tiebreakers:
-```bash
+```sh
+cd client && npm ci && npm run build
+cd ../server && npm ci && npm run build
+export DATA_DIR=/var/lib/mario-career-quest
+export PUBLIC_JOIN_URL=https://your-event-domain.example/play
+export HOST_PIN='your-unique-12-plus-character-secret'
+export JUDGE_NAMES='DCC Judge'
 npm run seed
-```
-
-### 5. Start the Production Server
-```bash
 npm start
 ```
-The server will boot on `http://localhost:3001` (or your VPS external IP). Fastify directly serves the optimized client application and WebSocket endpoint on the same single port!
 
----
+These environment variables must be exported to the server process or configured in its service manager. `.env.example` is a reference and is **not automatically loaded**. The server serves the built client and `/ws` on one port (default 3001). Routes are `/play` (also `/` and `/join`), `/projector`, and `/host`. The host PIN is entered in the host view. `/api/questions` requires `Authorization: Bearer <HOST_PIN>`; public leaderboards exclude roll numbers and session credentials.
 
-## 📋 Running the 150-Player Automated Stress Test
-To benchmark the server on your VPS:
-```bash
-npm run test:load
+`DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with live or pipe-run answers. Review all question wording and answer keys with the DCC content team before the event.
+
+## Rehearsal and fallback
+
+1. Open `/projector` on the lecture hall display and `/host` on the operator laptop. Scan the QR using a venue Wi-Fi phone and a mobile-data phone. The QR targets `PUBLIC_JOIN_URL` or the current origin plus `/play`.
+2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls in portrait and landscape. In the lobby, the first ten seeded questions open one per pipe with immediate feedback and saved practice progress. The host can see how many eligible players are standing on pipes. Open the live practice question, verify that it only appears at a pipe and awards zero quiz points, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
+3. Run the full 15 + 20 question sequence, check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
+4. Prepare printed questions, a private answer key, manual score sheets, and the final case:
+
+```sh
+export FALLBACK_DIR=/secure/location/for/event-printouts
+npm run export:fallback
 ```
-This spawns an automated host and 150 concurrent simulated student clients that connect, register, receive question broadcasts, and lock in answers within 3 seconds, logging real-time memory and CPU telemetry.
 
----
+Keep the answer key with staff. If the network fails, the host pauses, projects the same questions, and records paper answers by roll number. Do not mix online and paper scoring without marking which method each participant used. If the server restarts during a live question, it locks that question. The host can verify and reveal it, or **void it and replay**; voiding removes its awarded points. A running finalist clock pauses on restart.
 
-## 🏆 Round Structure & Scoring
+### Backup and restore
 
-### Level 1: "Start Your Quest" — Career & Placement Quiz
-- **Target**: All ~150 participants.
-- **Format**: 15 multiple-choice questions on foundational career terms (PPO, CTC vs in-hand, ATS keywords, STAR method, resume bullets).
-- **Points**: 100 base coins + speed bonus (up to 20 pts).
-- **Progression**: Host clicks **"TOP 50 CUT-OFF"** in the control panel to advance the top 50 qualifiers to Level 2.
+Create a consistent SQLite backup before the event, after each cut-off, and before the final reveal:
 
-### Level 2: "Question Block" — Myth-Busting & Red Flags
-- **Target**: Top 50 qualifiers (non-qualifiers enter spectator mode).
-- **Format**: 20 scenario-based questions categorized into:
-  - `MYTH OR FACT?`
-  - `CHOOSE WISELY`
-  - `RED FLAG` (Advance-fee fraud, fake offer letters, predatory bonds, task scams).
-- **Progression**: Host clicks **"TOP 10 CUT-OFF"** to qualify the top 10 finalists for the stage finale.
+```sh
+export BACKUP_DIR=/secure/location/for/backups
+npm run backup
+```
 
-### Level 3: "Bowser's Boss Challenge" — Career Case Finale
-- **Target**: Top 10 finalists on stage.
-- **Case**: Comparing Offer A (High stipend ₹45k, no mentorship, vague duties) vs Offer B (Lower stipend ₹18k, experienced mentor, high-impact production code ownership).
-- **Format**: 2-minute spoken response per finalist.
-- **Rubric (20 Points Total)**:
-  1. *Clarity & Structure* (0–5)
-  2. *Reasoning & Trade-offs* (0–5)
-  3. *Practical Judgement* (0–5)
-  4. *Communication & Timing* (0–5)
-- **Victory Podium**: Host clicks **"PODIUM"** to reveal 1st, 2nd, and 3rd place winners on the stage projector with animated trophies, celebration fanfare, and confetti!
+To restore: stop the server, copy the chosen backup file to `$DATA_DIR/mario_quest.db`, remove any stale `mario_quest.db-wal` and `mario_quest.db-shm` files in that **stopped** data directory, restart the server, and inspect `/health`, `/host`, and `/projector` before resuming. Keep the previous database file until the restored state has been checked.
 
----
+### Isolated 150-player load test
 
-## 🔒 Security & Admin Access
-- **Host Admin PIN**: `DCC2026` (configurable via `HOST_PIN` environment variable).
-- **Database Backup**: Single-file SQLite database located at `server/data/mario_quest.db`.
+Never run the load test on the event database. Seed a separate directory and run a separate server on port 3002:
 
----
-*Created for Dean Career Cloud (DCC) • School of Computer Science Engineering & Technology • Bennett University*
+```sh
+export DATA_DIR=/tmp/mario-quest-load-test
+export HOST_PIN='a-separate-test-secret'
+export PORT=3002
+export TEST_MODE=1
+npm run seed
+npm start
+```
 
+In another shell, run:
+
+```sh
+cd server
+HOST_PIN='a-separate-test-secret' TEST_HTTP_URL=http://localhost:3002 npm run test:load
+```
+
+The script refuses a server without `TEST_MODE=1` or a fresh database. Simulated players signal pipe readiness before submitting. It asserts all 150 joins and acknowledgements, a short answer burst, duplicate rejection, session restoration, p95 answer acknowledgement within 1 second, and RSS under 500 MB. Run it on the actual VPS and record the result; a local pass does not establish VPS or venue-network performance. The full game must be rehearsed before 2 November.
+
+## Developer checks
+
+```sh
+npm test
+npm run server:build
+npm run client:build
+cd client && npm run lint
+```

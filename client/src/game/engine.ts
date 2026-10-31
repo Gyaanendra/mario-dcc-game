@@ -1,7 +1,7 @@
 import type {
   PlayerEntity, EnemyEntity, BlockEntity, CoinEntity, PipeEntity,
   MushroomEntity, MovingPlatform, Particle, FlagPole, Checkpoint,
-  GoldenPillar, GameCamera, InputState, GameState, LevelData, AABB, Direction,
+  GameCamera, InputState, GameState, LevelData, AABB, Direction,
 } from './types';
 import { TileType } from './types';
 import { TILE, PHYSICS, COLORS, DIMENSIONS, createLevel1 } from './config';
@@ -14,7 +14,6 @@ import {
   drawPlayer, drawFlagPole as drawFlagPoleSprite,
   drawCheckpoint as drawCheckpointSprite,
   drawParticle,
-  drawGoldenPillar,
 } from './sprites';
 import { gameAudio } from './audio';
 
@@ -34,8 +33,6 @@ export class GameEngine {
   private particles: Particle[] = [];
   private flagPole: FlagPole | null = null;
   private checkpoints: Checkpoint[] = [];
-  private pillars: GoldenPillar[] = [];
-  private activePillarId: number | null = null;
 
   private camera!: GameCamera;
   private input: InputState = { left: false, right: false, jump: false, jumpPressed: false, pause: false };
@@ -55,14 +52,21 @@ export class GameEngine {
   private bushes: DecorItem[] = [];
 
   private levelRng = 0;
+  private externalPause = false;
+  private backgroundImage: HTMLImageElement | null = null;
+  private avatarId: 'mario' | 'luigi';
 
   private boundKeyDown: (e: KeyboardEvent) => void;
   private boundKeyUp: (e: KeyboardEvent) => void;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, avatarId: 'mario' | 'luigi' = 'mario') {
     this.canvas = canvas;
+    this.avatarId = avatarId;
     this.ctx = canvas.getContext('2d')!;
     this.ctx.imageSmoothingEnabled = false;
+    const background = new Image();
+    background.src = '/images/dcc-platform-world-clean.png';
+    background.onload = () => { this.backgroundImage = background; };
 
     this.boundKeyDown = this.onKeyDown.bind(this);
     this.boundKeyUp = this.onKeyUp.bind(this);
@@ -102,6 +106,29 @@ export class GameEngine {
     this.gameState.paused = !this.gameState.paused;
   }
 
+  setExternalPause(paused: boolean) {
+    this.externalPause = paused;
+    if (paused) {
+      this.input.left = false;
+      this.input.right = false;
+      this.input.jump = false;
+      this.input.jumpPressed = false;
+    }
+  }
+
+  getPipeContact(): number | null {
+    if (!this.player || !this.player.grounded) return null;
+    const feet = this.player.pos.y + this.player.h;
+    const center = this.player.pos.x + this.player.w / 2;
+    const index = this.pipes.findIndex(pipe =>
+      Math.abs(feet - pipe.pos.y) <= 2 && center >= pipe.pos.x + 4 && center <= pipe.pos.x + pipe.w - 4);
+    return index >= 0 ? index : null;
+  }
+
+  setWorldLabel(level: number) {
+    if (this.gameState) this.gameState.world = `${level}-1`;
+  }
+
   reset() {
     this.loadLevel();
   }
@@ -117,9 +144,10 @@ export class GameEngine {
   }
 
   // touch helpers for mobile controls
-  touchLeft(on: boolean)  { this.input.left = on; }
-  touchRight(on: boolean) { this.input.right = on; }
+  touchLeft(on: boolean)  { if (!this.externalPause) this.input.left = on; }
+  touchRight(on: boolean) { if (!this.externalPause) this.input.right = on; }
   touchJump() {
+    if (this.externalPause) return;
     if (!this.input.jumpPressed) {
       this.input.jump = true;
       this.input.jumpPressed = true;
@@ -133,6 +161,7 @@ export class GameEngine {
 
   // ── input ───────────────────────────────────────────────────
   private onKeyDown(e: KeyboardEvent) {
+    if (this.externalPause) return;
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA': this.input.left = true; break;
       case 'ArrowRight': case 'KeyD': this.input.right = true; break;
@@ -229,16 +258,6 @@ export class GameEngine {
       pos: { x: cp.x, y: cp.y }, activated: false,
     }));
 
-    this.pillars = (this.level.pillars || []).map(p => ({
-      pos: { x: p.x, y: p.y },
-      w: 48,
-      h: 128,
-      id: p.id,
-      triggered: false,
-      glowPhase: 0,
-    }));
-    this.activePillarId = null;
-
     this.camera = {
       x: 0, y: 0, targetX: 0, targetY: 0,
       worldWidth: this.level.width, worldHeight: this.level.height,
@@ -283,7 +302,7 @@ export class GameEngine {
     const dt = Math.min((now - this.lastTime) / 16.667, 2);
     this.lastTime = now;
 
-    if (!this.gameState.paused && !this.gameState.gameOver) {
+    if (!this.gameState.paused && !this.externalPause && !this.gameState.gameOver) {
       this.tick++;
       this.updatePlayer();
       this.updateEnemies();
@@ -295,7 +314,6 @@ export class GameEngine {
       this.updateCamera();
       this.updateTimer(dt);
       this.checkLevelComplete();
-      this.updatePillars();
     }
 
     this.render();
@@ -318,8 +336,8 @@ export class GameEngine {
     if (p.landTimer > 0) p.landTimer--;
 
     // horizontal input
-    const maxSpeed = Math.abs(p.vel.x) > PHYSICS.playerWalkSpeed
-      ? PHYSICS.playerRunSpeed : PHYSICS.playerWalkSpeed;
+    // The walk-speed clamp prevented acceleration from ever reaching run speed.
+    const maxSpeed = PHYSICS.playerRunSpeed;
     if (this.input.left) {
       p.vel.x -= PHYSICS.playerAccel;
       if (p.vel.x < -maxSpeed) p.vel.x = -maxSpeed;
@@ -354,7 +372,6 @@ export class GameEngine {
     this.resolveTileCollisionX(p);
     this.resolveBlockCollisionX(p);
     this.resolvePipeCollisionX(p);
-    this.resolvePillarCollisionX(p);
 
     // move Y then resolve
     const wasInAir = !p.grounded;
@@ -363,7 +380,6 @@ export class GameEngine {
     this.resolveTileCollisionY(p);
     this.resolveBlockCollisionY(p);
     this.resolvePipeCollisionY(p);
-    this.resolvePillarCollisionY(p);
     this.resolveMovingPlatformCollision(p);
 
     if (p.grounded && wasInAir && p.vel.y >= 0) {
@@ -383,12 +399,6 @@ export class GameEngine {
     this.checkMushroomPickup();
     // checkpoint
     this.checkCheckpoints();
-    // pillar collision
-    const hitPillar = this.checkPillarCollision();
-    if (hitPillar && !this.activePillarId) {
-      this.activePillarId = hitPillar.id;
-      this.gameState.paused = true;
-    }
     // flagpole
     this.checkFlagPole();
 
@@ -1004,67 +1014,6 @@ export class GameEngine {
     }
   }
 
-  // ── golden pillars ──────────────────────────────────────────
-  private updatePillars() {
-    for (const pillar of this.pillars) {
-      pillar.glowPhase++;
-    }
-  }
-
-  private checkPillarCollision(): GoldenPillar | null {
-    const p = this.player;
-    const pBox = { x: p.pos.x, y: p.pos.y, w: p.w, h: p.h };
-    for (const pillar of this.pillars) {
-      if (pillar.triggered) continue;
-      const pillarBox = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
-      if (this.aabbOverlap(pBox, pillarBox)) {
-        return pillar;
-      }
-    }
-    return null;
-  }
-
-  private resolvePillarCollisionX(ent: { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number }) {
-    for (const pillar of this.pillars) {
-      const pBox: AABB = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
-      const eBox = this.entityAABB(ent);
-      if (!this.aabbOverlap(eBox, pBox)) continue;
-      if (ent.vel.x > 0) { ent.pos.x = pillar.pos.x - ent.w; ent.vel.x = 0; }
-      else if (ent.vel.x < 0) { ent.pos.x = pillar.pos.x + pillar.w; ent.vel.x = 0; }
-    }
-  }
-
-  private resolvePillarCollisionY(ent: { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number; grounded?: boolean }) {
-    for (const pillar of this.pillars) {
-      const pBox: AABB = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
-      const eBox = { x: ent.pos.x, y: ent.pos.y, w: (ent as any).w, h: (ent as any).h };
-      if (!this.aabbOverlap(eBox, pBox)) continue;
-      if (ent.vel.y > 0) {
-        ent.pos.y = pillar.pos.y - (ent as any).h;
-        ent.vel.y = 0;
-        if ('grounded' in ent) (ent as any).grounded = true;
-      } else if (ent.vel.y < 0) {
-        ent.pos.y = pillar.pos.y + pillar.h;
-        ent.vel.y = 0;
-      }
-    }
-  }
-
-  getActivePillarId(): number | null {
-    return this.activePillarId;
-  }
-
-  markPillarAnswered(pillarId: number) {
-    const pillar = this.pillars.find(p => p.id === pillarId);
-    if (pillar) pillar.triggered = true;
-    this.activePillarId = null;
-    this.gameState.paused = false;
-  }
-
-  getPillarTriggeredState(): boolean[] {
-    return this.pillars.map(p => p.triggered);
-  }
-
   // ── spawn helpers ───────────────────────────────────────────
   private spawnCoinPop(x: number, y: number) {
     this.coins.push({
@@ -1115,36 +1064,41 @@ export class GameEngine {
     // compute view scale: map logical 1280×720 (level height is 15*32=480) to canvas
     const logicalW = cam.viewWidth;
 
-    // 1. SKY
-    drawSky(ctx, cw, ch);
-
-    // 2. CLOUDS (parallax 0.2x)
-    for (const c of this.clouds) {
-      const sx = c.x - cam.x * 0.2;
-      const wrappedX = ((sx % (cw + 200)) + cw + 200) % (cw + 200) - 100;
-      drawCloud(ctx, wrappedX, c.y, c.size * DIMENSIONS.cloud.w);
-    }
-
-    // 3. FAR HILLS (parallax 0.3x)
-    const groundScreenY = 13 * TILE - cam.y;
-    for (const h of this.farHills) {
-      const sx = h.x - cam.x * 0.3;
-      const wrappedX = ((sx % (cw + 400)) + cw + 400) % (cw + 400) - 200;
-      drawHillLarge(ctx, wrappedX, groundScreenY, h.size * DIMENSIONS.largeHill.w);
-    }
-
-    // 4. NEAR HILLS (parallax 0.5x)
-    for (const h of this.nearHills) {
-      const sx = h.x - cam.x * 0.5;
-      const wrappedX = ((sx % (cw + 400)) + cw + 400) % (cw + 400) - 200;
-      drawHillSmall(ctx, wrappedX, groundScreenY, h.size * DIMENSIONS.smallHill.w);
-    }
-
-    // 5. BUSHES (parallax 0.6x)
-    for (const b of this.bushes) {
-      const sx = b.x - cam.x * 0.6;
-      const wrappedX = ((sx % (cw + 200)) + cw + 200) % (cw + 200) - 100;
-      drawBush(ctx, wrappedX, groundScreenY - 14, b.size * DIMENSIONS.bush.w);
+    // Use the supplied Bennett/DCC artwork for the scenery; the pipes and
+    // foreground remain real collision objects drawn below it.
+    if (this.backgroundImage) {
+      const image = this.backgroundImage;
+      const backgroundHeight = 13 * TILE - cam.y;
+      const sourceHeight = image.height * (335 / 576);
+      const sourceWidth = Math.min(image.width, sourceHeight * cw / Math.max(1, backgroundHeight));
+      const progress = cam.x / Math.max(1, this.level.width - cam.viewWidth);
+      const sourceX = Math.max(0, Math.min(1, progress)) * (image.width - sourceWidth);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(image, sourceX, 0, sourceWidth, sourceHeight, 0, 0, cw, backgroundHeight);
+      ctx.imageSmoothingEnabled = false;
+    } else {
+      drawSky(ctx, cw, ch);
+      for (const c of this.clouds) {
+        const sx = c.x - cam.x * 0.2;
+        const wrappedX = ((sx % (cw + 200)) + cw + 200) % (cw + 200) - 100;
+        drawCloud(ctx, wrappedX, c.y, c.size * DIMENSIONS.cloud.w);
+      }
+      const groundScreenY = 13 * TILE - cam.y;
+      for (const h of this.farHills) {
+        const sx = h.x - cam.x * 0.3;
+        const wrappedX = ((sx % (cw + 400)) + cw + 400) % (cw + 400) - 200;
+        drawHillLarge(ctx, wrappedX, groundScreenY, h.size * DIMENSIONS.largeHill.w);
+      }
+      for (const h of this.nearHills) {
+        const sx = h.x - cam.x * 0.5;
+        const wrappedX = ((sx % (cw + 400)) + cw + 400) % (cw + 400) - 200;
+        drawHillSmall(ctx, wrappedX, groundScreenY, h.size * DIMENSIONS.smallHill.w);
+      }
+      for (const b of this.bushes) {
+        const sx = b.x - cam.x * 0.6;
+        const wrappedX = ((sx % (cw + 200)) + cw + 200) % (cw + 200) - 100;
+        drawBush(ctx, wrappedX, groundScreenY - 14, b.size * DIMENSIONS.bush.w);
+      }
     }
 
     // world→screen helper
@@ -1220,7 +1174,10 @@ export class GameEngine {
     // 13. PLAYER
     const p = this.player;
     if (p.invulnTimer <= 0 || this.tick % 4 < 2) {
+      ctx.save();
+      if (this.avatarId === 'luigi') ctx.filter = 'hue-rotate(100deg)';
       drawPlayer(ctx, wx(p.pos.x), wy(p.pos.y), p.state, p.direction, p.animFrame, p.powerLevel, p.invulnTimer);
+      ctx.restore();
     }
 
     // 14. PARTICLES
@@ -1238,16 +1195,8 @@ export class GameEngine {
       drawCheckpointSprite(ctx, wx(cp.pos.x), wy(cp.pos.y), cp.activated, this.tick);
     }
 
-    // 16.5. GOLDEN PILLARS
-    for (const pillar of this.pillars) {
-      const px = wx(pillar.pos.x);
-      const py = wy(pillar.pos.y);
-      if (px < -100 || px > cw + 100) continue;
-      drawGoldenPillar(ctx, px, py, pillar.w, pillar.h, pillar.glowPhase, pillar.triggered);
-    }
-
     // 17. HUD
-    this.renderHUD(ctx, cw, ch);
+    // Quiz score and timer are shown by the React HUD, from server state.
 
     // 18. MINIMAP
     this.renderMinimap(ctx, cw, ch);
@@ -1256,75 +1205,6 @@ export class GameEngine {
     if (this.gameState.paused) this.renderPauseOverlay(ctx, cw, ch);
     if (this.gameState.gameOver) this.renderGameOverOverlay(ctx, cw, ch);
     if (this.gameState.levelComplete) this.renderLevelCompleteOverlay(ctx, cw, ch);
-  }
-
-  // ── HUD ─────────────────────────────────────────────────────
-  private renderHUD(ctx: CanvasRenderingContext2D, cw: number, _ch: number) {
-    const p = this.player;
-    const pad = 8;
-    const barH = 36;
-    const fontSize = 8;
-    const bigFont = 10;
-
-    ctx.fillStyle = COLORS.hudBg;
-    ctx.fillRect(0, 0, cw, barH + pad);
-    ctx.textBaseline = 'top';
-
-    // "MARIO" logo
-    let x = pad;
-    ctx.font = `bold ${bigFont}px monospace`;
-    ctx.fillStyle = COLORS.hudRed; ctx.fillText('M', x, pad); x += bigFont * 0.7;
-    ctx.fillStyle = COLORS.hudGold; ctx.fillText('A', x, pad); x += bigFont * 0.7;
-    ctx.fillStyle = COLORS.pipeGreen; ctx.fillText('R', x, pad); x += bigFont * 0.7;
-    ctx.fillStyle = COLORS.marioBlue; ctx.fillText('I', x, pad); x += bigFont * 0.5;
-    ctx.fillStyle = COLORS.hudRed; ctx.fillText('O', x, pad);
-
-    ctx.font = `${fontSize - 2}px monospace`;
-    ctx.fillStyle = '#AAC8FF';
-    ctx.fillText('CAREER QUEST', pad, pad + bigFont + 3);
-
-    // WORLD
-    const worldX = cw * 0.16;
-    ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = COLORS.hudText;
-    ctx.fillText('WORLD', worldX, pad);
-    ctx.font = `bold ${bigFont}px monospace`;
-    ctx.fillStyle = COLORS.hudGold;
-    ctx.fillText(this.gameState.world, worldX, pad + fontSize + 3);
-
-    // LIVES
-    const livesX = cw * 0.30;
-    ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = COLORS.hudRed;
-    ctx.fillText('♥', livesX, pad);
-    ctx.fillStyle = COLORS.hudGold;
-    ctx.fillText(` x${p.lives}`, livesX + fontSize, pad);
-
-    // COINS
-    const coinsX = cw * 0.42;
-    ctx.fillStyle = COLORS.coinGold;
-    ctx.fillText('●', coinsX, pad);
-    ctx.fillStyle = COLORS.hudGold;
-    ctx.fillText(` x${p.coins}`, coinsX + fontSize, pad);
-
-    // SCORE
-    const scoreX = cw * 0.55;
-    ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = COLORS.hudText;
-    ctx.fillText('SCORE', scoreX, pad);
-    ctx.font = `bold ${bigFont}px monospace`;
-    ctx.fillStyle = COLORS.hudGold;
-    ctx.fillText(String(p.score).padStart(7, '0'), scoreX, pad + fontSize + 3);
-
-    // TIME
-    const timeX = cw * 0.75;
-    ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = COLORS.hudText;
-    ctx.fillText('TIME', timeX, pad);
-    const timer = Math.ceil(this.gameState.timer);
-    ctx.font = `bold ${bigFont}px monospace`;
-    ctx.fillStyle = timer <= 60 ? COLORS.hudRed : COLORS.hudGold;
-    ctx.fillText(String(timer), timeX, pad + fontSize + 3);
   }
 
   // ── minimap ─────────────────────────────────────────────────

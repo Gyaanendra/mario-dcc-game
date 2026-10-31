@@ -50,7 +50,7 @@ class ChiptuneSynth {
 
       osc.start(now);
       osc.stop(now + 0.35);
-    } catch (e) {
+    } catch {
       // AudioContext might require user gesture
     }
   }
@@ -78,7 +78,7 @@ class ChiptuneSynth {
 
       osc.start(now);
       osc.stop(now + 0.16);
-    } catch (e) {}
+    } catch {}
   }
 
   // 1-Up / Power Up Fanfare
@@ -107,7 +107,7 @@ class ChiptuneSynth {
         osc.start(noteStart);
         osc.stop(noteStart + 0.08);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Wrong / Error Buzzer
@@ -133,7 +133,7 @@ class ChiptuneSynth {
 
       osc.start(now);
       osc.stop(now + 0.25);
-    } catch (e) {}
+    } catch {}
   }
 
   // Countdown Clock Tick
@@ -158,7 +158,7 @@ class ChiptuneSynth {
 
       osc.start(now);
       osc.stop(now + 0.05);
-    } catch (e) {}
+    } catch {}
   }
 
   // Bowser Menacing Low Roar
@@ -191,7 +191,7 @@ class ChiptuneSynth {
 
       osc.start(now);
       osc.stop(now + 0.65);
-    } catch (e) {}
+    } catch {}
   }
 
   // Victory Fanfare
@@ -222,7 +222,7 @@ class ChiptuneSynth {
         osc.start(start);
         osc.stop(start + dur);
       });
-    } catch (e) {}
+    } catch {}
   }
 }
 

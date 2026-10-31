@@ -9,7 +9,11 @@
     "client:dev": "cd client && npm run dev",
     "client:build": "cd client && npm run build",
     "seed": "cd server && npm run seed",
-    "test:load": "cd server && npx tsx src/loadTest.ts"
+    "test:load": "cd server && npm run test:load",
+    "test": "cd server && npm test",
+    "server:build": "cd server && npm run build",
+    "export:fallback": "cd server && npm run export:fallback",
+    "backup": "cd server && npm run backup"
   },
   "keywords": [
     "mario-career-quest",
@@ -21,6 +25,8 @@
     "sqlite"
   ],
   "author": "Dean Career Cloud (DCC) - SCSET - Bennett University",
-  "license": "ISC"
+  "license": "ISC",
+  "engines": {
+    "node": ">=24 <25"
+  }
 }
-

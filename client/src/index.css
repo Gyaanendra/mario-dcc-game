@@ -23,9 +23,96 @@ body {
   overflow-x: hidden;
 }
 
+button, select { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
+}
+.event-button {
+  min-height: 44px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  transition: filter 150ms ease, transform 150ms ease;
+}
+.event-button:not(:disabled):hover { filter: brightness(1.16); }
+.event-button:not(:disabled):active { transform: translateY(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .font-pixel {
   font-family: var(--font-pixel);
   letter-spacing: 0.05em;
+}
+
+.game-controls-label { display: none; }
+
+@media (max-width: 700px) and (orientation: portrait) {
+  .game-shell .game-canvas {
+    height: calc(100dvh - 180px - env(safe-area-inset-bottom));
+    width: 100%;
+  }
+  .game-shell .game-hud {
+    top: max(8px, env(safe-area-inset-top));
+    left: 8px;
+    right: 8px;
+    padding: 8px 10px;
+    gap: 5px;
+    font-size: 11px;
+  }
+  .game-shell .game-hud > div {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .game-shell .game-hud .font-pixel { font-size: 9px; }
+  .game-shell .game-actions {
+    top: calc(max(8px, env(safe-area-inset-top)) + 77px);
+    right: 8px;
+    gap: 5px;
+  }
+  .game-shell .game-actions button { padding: 7px; }
+  .game-shell .game-caption {
+    bottom: calc(128px + env(safe-area-inset-bottom));
+    z-index: 30;
+    width: calc(100% - 20px);
+    max-width: none;
+    padding: 7px 10px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .game-shell .game-controls {
+    bottom: 0;
+    height: calc(180px + env(safe-area-inset-bottom));
+    align-items: end;
+    border-top: 4px solid #27b74a;
+    background: linear-gradient(180deg, #17284b 0%, #10182c 100%);
+    padding: 0 18px calc(14px + env(safe-area-inset-bottom));
+  }
+  .game-shell .game-control-btn { width: 76px; height: 76px; }
+  .game-shell .game-jump-btn { width: 94px; height: 94px; }
+  .game-shell .game-question-overlay {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+  .game-shell .game-question-card {
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+    border-width: 3px;
+    padding: 14px;
+  }
+  .game-shell .game-question-card h2 { font-size: 18px; line-height: 1.35; }
+  .game-shell .game-question-card button { min-height: 50px; }
 }
 
 /* NES / Arcade pixel borders */

@@ -1,428 +1,175 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-react';
+import type { SocketHookState } from '../utils/socket';
 import { GameEngine } from './engine';
 import { gameAudio } from './audio';
-import { Volume2, VolumeX, Pause, Play, RotateCcw, Maximize2 } from 'lucide-react';
-import { useGameSocket } from '../utils/socket';
 
-interface PillarQuestion {
-  id: number;
-  pillarId: number;
-  prompt: string;
-  options: { key: string; text: string }[];
-  correctOption: string;
-  category: string;
-}
+interface Props { socket: SocketHookState }
+const QUESTION_STATES = ['QUESTION_ACTIVE', 'PAUSED', 'QUESTION_LOCKED', 'REVEAL'];
 
-const PLACEHOLDER_QUESTIONS: PillarQuestion[] = [
-  {
-    id: 101, pillarId: 1, category: 'CAREER BASICS',
-    prompt: 'What is the most important factor when choosing your first job after graduation?',
-    options: [
-      { key: 'A', text: 'Highest salary offered' },
-      { key: 'B', text: 'Learning opportunities and growth' },
-      { key: 'C', text: 'Brand name of the company' },
-      { key: 'D', text: 'Office location convenience' },
-    ],
-    correctOption: 'B',
-  },
-  {
-    id: 102, pillarId: 2, category: 'PLACEMENT TERMS',
-    prompt: 'What does "CTC" stand for in a job offer letter?',
-    options: [
-      { key: 'A', text: 'Cost To Company' },
-      { key: 'B', text: 'Company Training Certificate' },
-      { key: 'C', text: 'Career Transition Course' },
-      { key: 'D', text: 'Central Talent Committee' },
-    ],
-    correctOption: 'A',
-  },
-  {
-    id: 103, pillarId: 3, category: 'RESUME',
-    prompt: 'Which section should appear first on a fresher\'s resume?',
-    options: [
-      { key: 'A', text: 'Work experience' },
-      { key: 'B', text: 'Hobbies and interests' },
-      { key: 'C', text: 'Education and skills' },
-      { key: 'D', text: 'References' },
-    ],
-    correctOption: 'C',
-  },
-];
-
-function getQuestionForPillar(pillarId: number): PillarQuestion {
-  return PLACEHOLDER_QUESTIONS.find(q => q.pillarId === pillarId) || PLACEHOLDER_QUESTIONS[0];
-}
-
-export const GameView: React.FC = () => {
+export const GameView: React.FC<Props> = ({ socket }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<GameEngine | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<GameEngine | null>(null);
+  const [pipeIndex, setPipeIndex] = useState<number | null>(null);
+  const [closedQuestionId, setClosedQuestionId] = useState<number | null>(null);
+  const [closedDemoPipeIndex, setClosedDemoPipeIndex] = useState<number | null>(null);
+  const [locallyPaused, setLocallyPaused] = useState(false);
+  const [levelComplete, setLevelComplete] = useState(false);
   const [isMuted, setIsMuted] = useState(gameAudio.isMuted());
-  const [isPaused, setIsPaused] = useState(false);
-  const [isGameOver, setIsGameOver] = useState(false);
-  const [isLevelComplete, setIsLevelComplete] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [, setIsFullscreen] = useState(false);
+  const [showTouchControls, setShowTouchControls] = useState(false);
+  const avatarId = socket.player?.avatar_id;
+  const playerId = socket.player?.id;
+  const level = socket.gameState.current_level;
+  const isConnected = socket.isConnected;
+  const send = socket.send;
 
-  const [activePillarId, setActivePillarId] = useState<number | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [answerSubmitted, setAnswerSubmitted] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-
-  const { player, submitPillarAnswer } = useGameSocket('PLAYER');
-
-  const checkMobile = useCallback(() => {
-    const mobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    setIsMobile(mobile);
+  useEffect(() => {
+    const checkSize = () => {
+      const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setShowTouchControls(touch || window.innerWidth < 700);
+    };
+    checkSize();
+    window.addEventListener('resize', checkSize);
+    return () => window.removeEventListener('resize', checkSize);
   }, []);
 
   useEffect(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [checkMobile]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const engine = new GameEngine(canvas);
+    if (!canvasRef.current || !avatarId) return;
+    const engine = new GameEngine(canvasRef.current, avatarId === 'luigi' ? 'luigi' : 'mario');
     engineRef.current = engine;
     engine.start();
-
-    const handleResize = () => engine.resize();
-    window.addEventListener('resize', handleResize);
-    handleResize();
-
-    const statusCheck = setInterval(() => {
-      const gs = engine.gameState;
-      if (!gs) return;
-      setIsPaused(gs.paused);
-      setIsGameOver(gs.gameOver);
-      setIsLevelComplete(gs.levelComplete);
-
-      const pillarId = engine.getActivePillarId();
-      if (pillarId && !activePillarId) {
-        setActivePillarId(pillarId);
-        setSelectedAnswer(null);
-        setAnswerSubmitted(false);
-        setShowResult(false);
-      }
-    }, 100);
-
+    const resize = () => engine.resize();
+    window.addEventListener('resize', resize);
+    const poll = window.setInterval(() => {
+      const contact = engine.getPipeContact();
+      setPipeIndex(previous => previous === contact ? previous : contact);
+      setLevelComplete(previous => previous === engine.gameState.levelComplete ? previous : engine.gameState.levelComplete);
+    }, 80);
     return () => {
+      window.clearInterval(poll);
+      window.removeEventListener('resize', resize);
       engine.stop();
-      window.removeEventListener('resize', handleResize);
-      clearInterval(statusCheck);
+      engineRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [avatarId]);
 
-  const handleToggleMute = () => {
-    setIsMuted(gameAudio.toggleMute());
-  };
+  useEffect(() => {
+    engineRef.current?.setWorldLabel(level || 1);
+  }, [level]);
 
-  const handlePause = () => {
-    engineRef.current?.togglePause();
-    setIsPaused(p => !p);
-  };
+  useEffect(() => {
+    if (isConnected && playerId) send({ type: 'CLIENT_PIPE_READY', ready: pipeIndex !== null, pipeIndex });
+  }, [pipeIndex, isConnected, playerId, level, send]);
 
-  const handleReset = () => {
+  const isPipeRun = socket.gameState.game_status === 'LOBBY';
+  const pipeRunQuestion = isPipeRun && pipeIndex !== null && closedDemoPipeIndex !== pipeIndex
+    ? socket.pipeQuest.question?.pipeIndex === pipeIndex ? socket.pipeQuest.question
+      : socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult.question : null
+    : null;
+  const isDemoQuestion = !!pipeRunQuestion;
+  const question = pipeRunQuestion || socket.activeQuestion;
+  const questionVisible = !!question && pipeIndex !== null && !socket.isSpectator &&
+    (isDemoQuestion || (closedQuestionId !== question.id && QUESTION_STATES.includes(socket.gameState.game_status)));
+  const spectatorLevel = level === 2 && !socket.player?.is_qualified_level2;
+  const finalStage = socket.gameState.game_status === 'BOWSER_STAGE';
+  const podiumStage = socket.gameState.game_status === 'PODIUM_WINNERS';
+  const stageOverlay = spectatorLevel || finalStage || podiumStage;
+
+  useEffect(() => { engineRef.current?.setExternalPause(questionVisible || stageOverlay); }, [questionVisible, stageOverlay]);
+
+  const resetRun = () => {
     engineRef.current?.reset();
-    setIsGameOver(false);
-    setIsLevelComplete(false);
-    setIsPaused(false);
-    setActivePillarId(null);
+    engineRef.current?.setWorldLabel(socket.gameState.current_level || 1);
+    setPipeIndex(null);
+    setClosedDemoPipeIndex(null);
+    setLocallyPaused(false);
+    setLevelComplete(false);
   };
-
-  const handleFullscreen = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
-    }
+  const togglePause = () => {
+    engineRef.current?.togglePause();
+    setLocallyPaused(value => !value);
   };
-
-  const handleTouchLeft = (active: boolean) => engineRef.current?.touchLeft(active);
-  const handleTouchRight = (active: boolean) => engineRef.current?.touchRight(active);
-  const handleTouchJump = () => engineRef.current?.touchJump();
-  const handleTouchJumpEnd = () => engineRef.current?.touchJumpRelease();
-
-  const preventTouch = (e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const toggleMute = () => setIsMuted(gameAudio.toggleMute());
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) containerRef.current?.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.().catch(() => {});
   };
+  const answers = question ? [
+    ['A', question.option_a], ['B', question.option_b], ['C', question.option_c], ['D', question.option_d]
+  ].filter((option): option is [string, string] => !!option[1]) : [];
+  const questionIsLive = socket.gameState.game_status === 'QUESTION_ACTIVE';
+  const awaitingPipe = questionIsLive && pipeIndex === null && !socket.isSpectator && !socket.myAnswer;
+  const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
+  const totalPipes = socket.pipeQuest.totalPipes;
 
-  const handleSubmitAnswer = () => {
-    if (!selectedAnswer || !activePillarId || answerSubmitted) return;
-    const question = getQuestionForPillar(activePillarId);
-    const isCorrect = selectedAnswer === question.correctOption;
-    setAnswerSubmitted(true);
-    setShowResult(true);
+  return <div ref={containerRef} className="game-shell fixed inset-0 overflow-hidden bg-sky-700 text-white" style={{ touchAction: 'none' }}>
+    <canvas ref={canvasRef} className="game-canvas block h-full w-full" style={{ imageRendering: 'pixelated' }} aria-label="Side-scrolling career quest game world" />
 
-    if (player) {
-      submitPillarAnswer(activePillarId, question.id, selectedAnswer, isCorrect);
-    }
+    <header className="game-hud absolute left-2 right-2 top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/30 bg-slate-950/85 px-3 py-2 shadow-lg backdrop-blur-sm sm:left-4 sm:right-4 sm:top-4 sm:px-5">
+      <div className="flex items-center gap-3"><span className="font-pixel text-[10px] text-yellow-300 sm:text-xs">CAREER QUEST</span><span className="hidden text-sm text-slate-200 sm:inline">{socket.player?.name}</span><span className="rounded bg-green-700/80 px-2 py-1 text-xs font-bold">{isPipeRun ? `PIPE RUN ${socket.pipeQuest.completedPipes}/${totalPipes || 10}` : `LEVEL ${socket.gameState.current_level || 1}`}</span></div>
+      <div className="flex items-center gap-3 text-xs sm:text-sm"><span className="font-bold text-yellow-200">{isPipeRun ? `★ ${socket.pipeQuest.correctCount} RIGHT` : `★ ${socket.player?.total_coins ?? 0} QUIZ POINTS`}</span><span className={pipeIndex !== null ? 'text-green-300' : 'text-white/80'}>{pipeIndex !== null ? `● PIPE ${pipeIndex + 1}` : '○ FIND A PIPE'}</span><span title={socket.isConnected ? 'Connected' : 'Reconnecting'}>{socket.isConnected ? <Wifi size={17} className="text-green-300" /> : <WifiOff size={17} className="text-red-300" />}</span></div>
+    </header>
 
-    setTimeout(() => {
-      engineRef.current?.markPillarAnswered(activePillarId);
-      setActivePillarId(null);
-      setSelectedAnswer(null);
-      setAnswerSubmitted(false);
-      setShowResult(false);
-    }, 2000);
-  };
-
-  const questionCardActive = activePillarId !== null;
-  const currentQuestion = activePillarId ? getQuestionForPillar(activePillarId) : null;
-
-  const canvasHeight = isMobile ? '60vh' : '100%';
-
-  return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 bg-black overflow-hidden select-none flex flex-col"
-      style={{ touchAction: 'none' }}
-      onContextMenu={e => e.preventDefault()}
-    >
-      {/* Game Canvas */}
-      <div className="relative flex-1" style={{ height: isMobile ? canvasHeight : '100%' }}>
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full block"
-          style={{ imageRendering: 'pixelated' }}
-          onTouchStart={preventTouch}
-          onTouchMove={preventTouch}
-        />
-
-        {/* Top-right controls */}
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20">
-          <button
-            onClick={handleToggleMute}
-            className="p-1.5 bg-black/60 hover:bg-black/80 rounded-lg border border-white/20 text-white/80 backdrop-blur-sm"
-          >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-          <button
-            onClick={handlePause}
-            className="p-1.5 bg-black/60 hover:bg-black/80 rounded-lg border border-white/20 text-white/80 backdrop-blur-sm"
-          >
-            {isPaused ? <Play size={16} /> : <Pause size={16} />}
-          </button>
-          <button
-            onClick={handleFullscreen}
-            className="p-1.5 bg-black/60 hover:bg-black/80 rounded-lg border border-white/20 text-white/80 backdrop-blur-sm"
-          >
-            <Maximize2 size={16} />
-          </button>
-        </div>
-
-        {/* Dev nav back button */}
-        {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
-          <button
-            onClick={() => { window.history.pushState({}, '', '/'); window.location.reload(); }}
-            className="absolute top-2 left-2 z-20 px-2 py-1 bg-black/60 hover:bg-black/80 rounded-lg border border-white/20 text-white/60 text-[10px] font-mono backdrop-blur-sm"
-          >
-            Back
-          </button>
-        )}
-      </div>
-
-      {/* Mobile Touch Controls — below canvas in portrait */}
-      {isMobile && !isPaused && !isGameOver && !isLevelComplete && !questionCardActive && (
-        <div className="relative bg-[#0a0e1a] flex items-center justify-between px-4 py-3" style={{ height: '40vh' }}>
-          {/* Left: Movement arrows */}
-          <div className="flex items-center gap-3">
-            <button
-              className="w-[72px] h-[72px] rounded-2xl bg-white/10 border-2 border-white/20 flex items-center justify-center active:bg-white/25"
-              onTouchStart={(e) => { preventTouch(e); handleTouchLeft(true); }}
-              onTouchEnd={(e) => { preventTouch(e); handleTouchLeft(false); }}
-              onTouchCancel={(e) => { preventTouch(e); handleTouchLeft(false); }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24">
-                <path d="M15 19l-7-7 7-7" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.8"/>
-              </svg>
-            </button>
-            <button
-              className="w-[72px] h-[72px] rounded-2xl bg-white/10 border-2 border-white/20 flex items-center justify-center active:bg-white/25"
-              onTouchStart={(e) => { preventTouch(e); handleTouchRight(true); }}
-              onTouchEnd={(e) => { preventTouch(e); handleTouchRight(false); }}
-              onTouchCancel={(e) => { preventTouch(e); handleTouchRight(false); }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24">
-                <path d="M9 5l7 7-7 7" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.8"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* Right: Crimson jump button */}
-          <button
-            className="w-20 h-20 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #ff4444, #dc143c 50%, #8b0000)',
-              boxShadow: 'inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.2), 0 4px 12px rgba(220,20,60,0.4)',
-              border: '3px solid rgba(255,100,100,0.3)',
-            }}
-            onTouchStart={(e) => { preventTouch(e); handleTouchJump(); }}
-            onTouchEnd={(e) => { preventTouch(e); handleTouchJumpEnd(); }}
-            onTouchCancel={(e) => { preventTouch(e); handleTouchJumpEnd(); }}
-          >
-            <span className="font-pixel text-white text-xs select-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-              JUMP
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Desktop mobile controls as overlay when not mobile */}
-      {!isMobile && false /* Desktop uses keyboard only */}
-
-      {/* Pause Overlay (only show when manually paused, not pillar-paused) */}
-      {isPaused && !isGameOver && !isLevelComplete && !questionCardActive && (
-        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-30 backdrop-blur-sm">
-          <div className="bg-[#171B30] border-4 border-yellow-500 rounded-2xl p-8 text-center shadow-2xl max-w-sm">
-            <h2 className="font-pixel text-2xl text-yellow-400 mb-4">PAUSED</h2>
-            <div className="space-y-3">
-              <button
-                onClick={handlePause}
-                className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-pixel text-sm rounded-xl border-2 border-black"
-              >
-                RESUME
-              </button>
-              <button
-                onClick={handleReset}
-                className="w-full py-3 bg-zinc-700 hover:bg-zinc-600 text-white font-pixel text-sm rounded-xl border-2 border-black flex items-center justify-center gap-2"
-              >
-                <RotateCcw size={16} />
-                RESTART LEVEL
-              </button>
-            </div>
-            <div className="mt-4 text-xs text-zinc-400 font-mono">
-              <div>Arrow Keys / WASD: Move</div>
-              <div>Space / W / Up: Jump</div>
-              <div>ESC: Pause</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Game Over Overlay */}
-      {isGameOver && (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30">
-          <div className="bg-[#171B30] border-4 border-red-500 rounded-2xl p-8 text-center shadow-2xl max-w-sm">
-            <h2 className="font-pixel text-3xl text-red-500 mb-2">GAME OVER</h2>
-            <p className="text-sm text-zinc-400 font-mono mb-6">Better luck next time!</p>
-            <button
-              onClick={handleReset}
-              className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-pixel text-sm rounded-xl border-2 border-black flex items-center justify-center gap-2"
-            >
-              <RotateCcw size={18} />
-              TRY AGAIN
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Level Complete Overlay */}
-      {isLevelComplete && (
-        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-30">
-          <div className="bg-[#171B30] border-4 border-yellow-400 rounded-2xl p-8 text-center shadow-2xl max-w-sm">
-            <h2 className="font-pixel text-2xl text-yellow-400 mb-2">LEVEL COMPLETE!</h2>
-            <p className="text-sm text-green-400 font-pixel mb-6">CONGRATULATIONS!</p>
-            <button
-              onClick={handleReset}
-              className="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-pixel text-sm rounded-xl border-2 border-black"
-            >
-              PLAY AGAIN
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Question Card Overlay */}
-      {questionCardActive && currentQuestion && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-40 p-4 backdrop-blur-sm">
-          <div className="bg-[#171B30] border-4 border-yellow-500 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 px-5 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-pixel text-lg text-white" style={{ textShadow: '1px 1px 0 #b45309' }}>?</span>
-                <span className="font-pixel text-xs text-white" style={{ textShadow: '1px 1px 0 #b45309' }}>
-                  PILLAR {activePillarId}
-                </span>
-              </div>
-              <span className="text-[10px] font-mono text-yellow-900 bg-yellow-200/50 px-2 py-0.5 rounded">
-                {currentQuestion.category}
-              </span>
-            </div>
-
-            {/* Question */}
-            <div className="px-5 pt-4 pb-3">
-              <p className="text-sm font-semibold text-zinc-100 leading-relaxed">
-                {currentQuestion.prompt}
-              </p>
-            </div>
-
-            {/* Options */}
-            <div className="px-5 pb-3 space-y-2">
-              {currentQuestion.options.map((opt) => {
-                const isSelected = selectedAnswer === opt.key;
-                const isCorrect = showResult && opt.key === currentQuestion.correctOption;
-                const isWrong = showResult && isSelected && opt.key !== currentQuestion.correctOption;
-
-                let style = 'border-zinc-600 bg-zinc-800/60 text-zinc-200 hover:bg-zinc-700/60';
-                if (isSelected && !showResult) {
-                  style = 'border-yellow-400 bg-yellow-500/20 text-yellow-200 ring-2 ring-yellow-400/50';
-                }
-                if (isCorrect) {
-                  style = 'border-green-400 bg-green-600/30 text-green-200 ring-2 ring-green-400';
-                }
-                if (isWrong) {
-                  style = 'border-red-500 bg-red-900/30 text-red-300 opacity-70';
-                }
-
-                return (
-                  <button
-                    key={opt.key}
-                    disabled={answerSubmitted}
-                    onClick={() => !answerSubmitted && setSelectedAnswer(opt.key)}
-                    className={`w-full p-3 rounded-xl border-2 text-left flex items-start gap-3 transition-all ${style} disabled:cursor-not-allowed`}
-                  >
-                    <span className="font-pixel text-xs px-2 py-0.5 rounded bg-black/40 border border-white/10 shrink-0">
-                      {opt.key}
-                    </span>
-                    <span className="text-xs leading-tight pt-0.5">{opt.text}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Result message */}
-            {showResult && (
-              <div className={`mx-5 mb-3 p-2.5 rounded-lg text-center font-pixel text-xs ${
-                selectedAnswer === currentQuestion.correctOption
-                  ? 'bg-green-900/40 border border-green-500 text-green-300'
-                  : 'bg-red-900/40 border border-red-500 text-red-300'
-              }`}>
-                {selectedAnswer === currentQuestion.correctOption ? 'CORRECT!' : `ANSWER: ${currentQuestion.correctOption}`}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="px-5 pb-5">
-              <button
-                onClick={handleSubmitAnswer}
-                disabled={!selectedAnswer || answerSubmitted}
-                className="w-full py-3.5 bg-red-600 hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-400 text-white font-pixel text-sm rounded-xl border-2 border-black transition-all active:scale-95"
-              >
-                {answerSubmitted ? 'SUBMITTED' : 'SUBMIT ANSWER'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="game-actions absolute right-3 top-20 z-20 flex gap-2 sm:top-20">
+      <button onClick={toggleMute} aria-label={isMuted ? 'Unmute game audio' : 'Mute game audio'} className="rounded-lg border border-white/30 bg-slate-950/75 p-2">{isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+      <button onClick={togglePause} aria-label={locallyPaused ? 'Resume movement' : 'Pause movement'} className="rounded-lg border border-white/30 bg-slate-950/75 p-2">{locallyPaused ? <Play size={18} /> : <Pause size={18} />}</button>
+      <button onClick={resetRun} aria-label="Restart platform run" className="rounded-lg border border-white/30 bg-slate-950/75 p-2"><RotateCcw size={18} /></button>
+      <button onClick={toggleFullscreen} aria-label="Toggle fullscreen" className="rounded-lg border border-white/30 bg-slate-950/75 p-2"><Maximize2 size={18} /></button>
     </div>
-  );
+
+    <div className="game-caption absolute bottom-4 left-1/2 z-10 w-[min(90vw,700px)] -translate-x-1/2 rounded-xl border border-white/30 bg-slate-950/80 px-4 py-2 text-center text-xs font-semibold shadow-lg sm:text-sm">
+      {socket.isSpectator || spectatorLevel ? 'Spectator mode — watch the projector for the next stage.' :
+        awaitingPipe ? `Question live · ${socket.remainingSeconds}s left · jump onto a pipe to unlock it!` :
+        isPipeRun && totalPipes > 0 && socket.pipeQuest.completedPipes >= totalPipes ? `Pipe run complete · ${socket.pipeQuest.correctCount}/${totalPipes} correct. Explore the world while the host prepares the live event.` :
+        isPipeRun && pipeIndex !== null && pipeIndex < socket.pipeQuest.nextPipeIndex ? `Pipe ${pipeIndex + 1} cleared · run to pipe ${socket.pipeQuest.nextPipeIndex + 1}.` :
+        isPipeRun && pipeIndex !== null && pipeIndex > socket.pipeQuest.nextPipeIndex ? `Your next question is at pipe ${socket.pipeQuest.nextPipeIndex + 1}.` :
+        isPipeRun && pipeIndex !== null ? questionVisible ? 'Answer this pipe question to keep moving.' : 'Loading your pipe question…' :
+        isPipeRun ? `Run to pipe ${socket.pipeQuest.nextPipeIndex + 1}, jump on top, and answer to continue.` :
+        pipeIndex !== null ? questionVisible ? 'Pipe reached · answer the question above.' : 'Pipe reached · wait here for the next live question.' :
+        'Move with ← → / A D and jump with Space / ↑ to reach a pipe.'}
+    </div>
+
+    {socket.lastError && <div role="alert" className="absolute left-3 top-20 z-40 max-w-sm rounded-lg border border-red-400 bg-red-950 p-3 text-sm">{socket.lastError}<button className="ml-2 underline" onClick={socket.clearError}>Dismiss</button></div>}
+
+    {questionVisible && question && <div className="game-question-overlay absolute inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-5">
+      <section role="dialog" aria-modal="true" aria-labelledby="pipe-question" className="game-question-card max-h-[93vh] w-full max-w-3xl overflow-y-auto rounded-2xl border-4 border-yellow-300 bg-[#15243b] p-4 shadow-[8px_8px_0_#081325] sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-600 pb-3"><span className="font-pixel text-xs text-yellow-300">{isDemoQuestion ? `PIPE ${pipeIndex! + 1} OF ${totalPipes} · PRACTICE RUN` : question.is_practice ? 'PRACTICE PIPE' : question.category === 'SUDDEN_DEATH' ? 'TIE-BREAK PIPE' : `LEVEL ${question.level} · PIPE ${question.sort_order ?? ''}`}</span><span className="rounded-lg border border-yellow-300 bg-black px-3 py-2 font-pixel text-sm text-yellow-200">{isDemoQuestion ? `${socket.pipeQuest.completedPipes}/${totalPipes}` : `${socket.remainingSeconds}s`}</span></div>
+        <h2 id="pipe-question" className="mt-4 text-xl font-black leading-snug sm:text-2xl">{question.prompt}</h2>
+        {(isDemoQuestion || question.is_practice === 1) && <p className="mt-2 text-sm text-sky-200">Practice run · event quiz points are unaffected</p>}
+        {!isDemoQuestion && socket.gameState.game_status === 'PAUSED' && <p className="mt-3 rounded-lg bg-amber-900 p-2 text-sm">The host paused this question. Your answer options will reopen when play resumes.</p>}
+        {isDemoQuestion && socket.pipeQuestPending && <p className="mt-3 rounded-lg border border-yellow-500 bg-yellow-950 p-2 text-sm">Checking answer…</p>}
+        {!isDemoQuestion && (socket.myAnswer || socket.answerPending) && socket.gameState.game_status !== 'REVEAL' && <p className="mt-3 rounded-lg border border-yellow-500 bg-yellow-950 p-2 text-sm">{socket.answerPending ? 'Sending answer…' : `Locked in: option ${socket.myAnswer?.selected_option}`}</p>}
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">{answers.map(([key, value]) => {
+          const revealed = isDemoQuestion ? !!demoResult : socket.gameState.game_status === 'REVEAL';
+          const correct = revealed && question.correct_option === key;
+          const selected = (isDemoQuestion ? demoResult?.selectedOption : socket.myAnswer?.selected_option) === key;
+          const disabled = !socket.isConnected || (isDemoQuestion ? !!demoResult || socket.pipeQuestPending : !socket.canAnswer || !!socket.myAnswer || socket.answerPending || !questionIsLive);
+          return <button key={key} type="button" disabled={disabled} onClick={() => isDemoQuestion ? socket.submitPipeQuestAnswer(pipeIndex!, question.id, key) : socket.submitAnswer(key)} className={`min-h-14 rounded-xl border-2 p-3 text-left text-sm font-semibold leading-snug transition-colors sm:text-base ${correct ? 'border-green-300 bg-green-700 text-white' : selected ? 'border-yellow-200 bg-yellow-600 text-black' : 'border-slate-500 bg-slate-900 text-white'} disabled:cursor-default`}><span className="mr-2 font-pixel text-xs text-yellow-200">{key}</span>{value}</button>;
+        })}</div>
+        {demoResult && <div className="mt-4 rounded-xl border-2 border-sky-400 bg-sky-950 p-3 text-sm"><p className="font-bold text-yellow-200">{demoResult.isCorrect ? 'Correct! Pipe cleared.' : `Pipe cleared. Correct answer: ${question.correct_option}`}</p>{question.explanation && <p className="mt-2 text-slate-100">{question.explanation.replace('Practice earns no coins.', 'Practice earns no points.')}</p>}<button onClick={() => { setClosedDemoPipeIndex(pipeIndex); socket.clearPipeQuestResult(); }} className="mt-3 min-h-12 w-full rounded-lg bg-green-700 px-5 font-bold">{pipeIndex! + 1 >= totalPipes ? 'Finish pipe run →' : `Continue to pipe ${pipeIndex! + 2} →`}</button></div>}
+        {!isDemoQuestion && socket.gameState.game_status === 'REVEAL' && <div className="mt-4 rounded-xl border-2 border-sky-400 bg-sky-950 p-3 text-sm"><p className="font-bold text-yellow-200">{socket.myAnswer?.is_correct ? question.is_practice ? 'Correct practice answer!' : `Correct! +${socket.myAnswer.coins_awarded ?? 0} points` : socket.myAnswer ? `The answer is ${question.correct_option}` : `Time is up. The answer is ${question.correct_option}`}</p>{question.explanation && <p className="mt-2 text-slate-100">{question.explanation.replace('Practice earns no coins.', 'Practice earns no points.')}</p>}<button onClick={() => setClosedQuestionId(question.id)} className="mt-3 min-h-11 rounded-lg bg-green-700 px-5 font-bold">Continue run →</button></div>}
+      </section>
+    </div>}
+
+    {stageOverlay && <div className="absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 sm:p-5">
+      <section className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-2xl border-4 border-yellow-300 bg-[#15243b] p-5 text-center shadow-[8px_8px_0_#081325] sm:p-7">
+        {podiumStage ? <><h2 className="font-pixel text-lg text-yellow-300">QUEST COMPLETE!</h2><p className="mt-4 text-base">Look at the projector for the verified podium. Thank you for playing.</p></> :
+          finalStage ? <><h2 className="font-pixel text-base text-yellow-300">BOWSER'S BOSS CHALLENGE</h2>
+            <p className="mt-3 text-sm text-slate-200">{socket.player?.is_qualified_level3 ? 'Present your career decision to the judges when the host calls your name.' : 'The finalists are presenting on stage. Watch the projector.'}</p>
+            {socket.player?.is_qualified_level3 && <div className="mt-4 space-y-3 text-left text-sm">
+              <div className="rounded-lg border border-red-400 bg-slate-950 p-3"><strong className="text-red-300">OFFER A · ₹45,000/month</strong><p>Early-stage startup; no senior engineering mentor; unclear deliverables.</p></div>
+              <div className="rounded-lg border border-green-400 bg-slate-950 p-3"><strong className="text-green-300">OFFER B · ₹18,000/month</strong><p>Established organisation; Staff Engineer mentor; production code ownership and strong PPO history.</p></div>
+              <p className="rounded-lg bg-purple-950 p-3 font-semibold">Which offer do you choose, what trade-off do you accept, and what two things do you verify before signing?</p>
+              <p className="text-center text-yellow-200">{socket.gameState.speaker_id === playerId ? 'YOUR TURN' : 'Speaker clock'} · {Math.floor(socket.speakerRemainingMs / 60000)}:{String(Math.ceil(socket.speakerRemainingMs / 1000) % 60).padStart(2, '0')}</p>
+            </div>}
+          </> : <><h2 className="font-pixel text-lg text-yellow-300">SPECTATOR MODE</h2><p className="mt-4 text-base">Level 2 is for the top 50 qualifiers. Your score is saved; follow the next stage on the projector.</p></>}
+      </section>
+    </div>}
+
+    {locallyPaused && !questionVisible && !stageOverlay && <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/65"><div className="rounded-xl border-4 border-yellow-400 bg-slate-900 p-6 text-center"><h2 className="font-pixel text-yellow-300">MOVEMENT PAUSED</h2><button onClick={togglePause} className="mt-5 min-h-11 rounded-lg bg-green-700 px-6 font-bold">Resume</button></div></div>}
+    {levelComplete && !questionVisible && !stageOverlay && <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/65"><div className="rounded-xl border-4 border-yellow-400 bg-slate-900 p-6 text-center"><h2 className="font-pixel text-yellow-300">WORLD CLEARED!</h2><p className="mt-3 text-sm">Your quiz points are saved. Restart the run to reach another pipe.</p><button onClick={resetRun} className="mt-5 min-h-11 rounded-lg bg-green-700 px-6 font-bold">Restart run</button></div></div>}
+
+    {showTouchControls && !questionVisible && !locallyPaused && !stageOverlay && <div className="game-controls pointer-events-none absolute bottom-14 left-0 right-0 z-20 flex items-end justify-between px-3"><span className="game-controls-label">HOLD TO RUN · TAP TO JUMP</span><div className="pointer-events-auto flex gap-3"><button aria-label="Move left" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchLeft(true); }} onPointerUp={() => engineRef.current?.touchLeft(false)} onPointerCancel={() => engineRef.current?.touchLeft(false)} onLostPointerCapture={() => engineRef.current?.touchLeft(false)} className="game-control-btn grid h-16 w-16 place-items-center rounded-xl border-2 border-white/50 bg-slate-950/75 text-3xl">◀</button><button aria-label="Move right" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchRight(true); }} onPointerUp={() => engineRef.current?.touchRight(false)} onPointerCancel={() => engineRef.current?.touchRight(false)} onLostPointerCapture={() => engineRef.current?.touchRight(false)} className="game-control-btn grid h-16 w-16 place-items-center rounded-xl border-2 border-white/50 bg-slate-950/75 text-3xl">▶</button></div><button aria-label="Jump" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchJump(); }} onPointerUp={() => engineRef.current?.touchJumpRelease()} onPointerCancel={() => engineRef.current?.touchJumpRelease()} onLostPointerCapture={() => engineRef.current?.touchJumpRelease()} className="game-jump-btn pointer-events-auto grid h-20 w-20 place-items-center rounded-full border-2 border-white/60 bg-red-600 text-xs font-pixel">JUMP</button></div>}
+  </div>;
 };

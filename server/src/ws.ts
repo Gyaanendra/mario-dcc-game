@@ -1,252 +1,133 @@
 import type { WebSocket } from 'ws';
+import { timingSafeEqual } from 'node:crypto';
 import { dbManager } from './db.js';
 import { gameManager } from './state.js';
 
-const HOST_PIN = process.env.HOST_PIN || 'DCC2026';
+function pinMatches(pin: unknown) {
+  const expected = process.env.HOST_PIN;
+  if (!expected || typeof pin !== 'string') return false;
+  const a = Buffer.from(pin), b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
-export function handleWebSocketConnection(socket: WebSocket, req: any) {
+export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
   let boundPlayerId: string | null = null;
   let isHost = false;
   let isProjector = false;
+  const send = (payload: unknown) => socket.send(JSON.stringify(payload));
 
-  socket.on('message', (raw: Buffer | string) => {
+  socket.on('message', (raw) => {
     try {
       const data = JSON.parse(raw.toString());
+      if (!data || typeof data.type !== 'string') throw new Error('Invalid message');
       const { type } = data;
 
-      // =======================================================================
-      // PLAYER MESSAGES
-      // =======================================================================
       if (type === 'CLIENT_JOIN') {
-        const { studentId, name, avatarId } = data;
-        if (!studentId || !name) {
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Student ID and Name required' }));
-          return;
-        }
-
-        const player = dbManager.getOrCreatePlayer(studentId, name, avatarId || 'mario');
+        if (boundPlayerId || isHost || isProjector) throw new Error('This connection already has a role');
+        const { player, sessionToken } = dbManager.createPlayer(data.studentId, data.name, data.avatarId);
         boundPlayerId = player.id;
         gameManager.registerPlayerSocket(player.id, socket);
-
-        socket.send(JSON.stringify({
-          type: 'JOIN_SUCCESS',
-          playerId: player.id,
-          player
-        }));
-
-        // Send current game state sync
-        socket.send(JSON.stringify(gameManager.getPlayerSyncPayload(player.id)));
-
-        // Notify hosts of updated player list
-        const allPlayers = dbManager.getAllPlayersForHost();
-        gameManager.broadcastToHosts({ type: 'PLAYERS_UPDATE', players: allPlayers });
+        const { session_token_hash, ...safePlayer } = player;
+        send({ type: 'JOIN_SUCCESS', sessionToken, player: safePlayer });
+        send(gameManager.getPlayerSyncPayload(player.id));
+        send(gameManager.getPipeQuestPayload(player.id));
         return;
       }
-
       if (type === 'CLIENT_RECONNECT') {
-        const { playerId } = data;
-        if (!playerId) {
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Player ID required' }));
-          return;
-        }
-
-        const player = dbManager.getPlayerById(playerId);
-        if (!player) {
-          socket.send(JSON.stringify({ type: 'SESSION_EXPIRED', message: 'Player session not found' }));
-          return;
-        }
-
+        if (isHost || isProjector) throw new Error('This connection already has a role');
+        const player = dbManager.getPlayerBySessionToken(data.sessionToken);
+        if (!player) { send({ type: 'SESSION_EXPIRED', message: 'Session not found. Ask the host for help if you already registered.' }); return; }
+        if (boundPlayerId && boundPlayerId !== player.id) throw new Error('This connection belongs to another player');
         boundPlayerId = player.id;
         gameManager.registerPlayerSocket(player.id, socket);
-
-        // Send fresh state sync immediately
-        socket.send(JSON.stringify(gameManager.getPlayerSyncPayload(player.id)));
+        send(gameManager.getPlayerSyncPayload(player.id));
+        send(gameManager.getPipeQuestPayload(player.id));
         return;
       }
-
       if (type === 'CLIENT_SUBMIT_ANSWER') {
-        if (!boundPlayerId) {
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Not authenticated' }));
-          return;
-        }
-
-        const state = dbManager.getGameState();
-        if (state.game_status !== 'QUESTION_ACTIVE' || !state.active_question_id) {
-          socket.send(JSON.stringify({ type: 'SUBMISSION_REJECTED', message: 'No question is currently accepting answers' }));
-          return;
-        }
-
-        const { questionId, selectedOption, responseTimeMs } = data;
-        if (questionId !== state.active_question_id) {
-          socket.send(JSON.stringify({ type: 'SUBMISSION_REJECTED', message: 'Question expired' }));
-          return;
-        }
-
-        const res = dbManager.submitAnswer(boundPlayerId, questionId, selectedOption, responseTimeMs || 5000);
-        if (res.alreadyAnswered) {
-          socket.send(JSON.stringify({ type: 'ALREADY_ANSWERED', message: 'You have already locked in your answer' }));
-          return;
-        }
-
-        // Notify client that answer is locked
-        socket.send(JSON.stringify({
-          type: 'ANSWER_LOCKED',
-          selectedOption,
-          coinsAwarded: res.coinsAwarded
-        }));
-
-        // Update Host and Projector with live submission counts
-        const stats = dbManager.getAnswerStats(questionId);
-        gameManager.broadcastToHosts({ type: 'LIVE_SUBMISSION_STATS', stats });
-        gameManager.broadcastToProjectors({ type: 'LIVE_SUBMISSION_STATS', stats });
+        if (!boundPlayerId) throw new Error('Join or reconnect before answering');
+        const result = gameManager.submitAnswer(boundPlayerId, Number(data.questionId), String(data.selectedOption || ''));
+        send(result.alreadyAnswered ? { type: 'ALREADY_ANSWERED', message: 'Answer already locked in' }
+          : { type: 'ANSWER_LOCKED', selectedOption: String(data.selectedOption).toUpperCase() });
         return;
       }
-
-      if (type === 'CLIENT_SUBMIT_PILLAR_ANSWER') {
-        if (!boundPlayerId) {
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Not joined' }));
-          return;
-        }
-        const { pillarId, questionId, selectedOption, isCorrect } = data;
-        const result = dbManager.submitPillarAnswer(boundPlayerId, pillarId, questionId, selectedOption, !!isCorrect);
-        if (!result) {
-          socket.send(JSON.stringify({ type: 'PILLAR_ALREADY_ANSWERED', pillarId }));
-        } else {
-          socket.send(JSON.stringify({ type: 'PILLAR_ANSWER_SAVED', pillarId, isCorrect: !!isCorrect }));
-          const pillarAnswers = dbManager.getAllPillarAnswers();
-          const allPlayers = dbManager.getAllPlayersForHost();
-          gameManager.broadcastToHosts({ type: 'PILLAR_ANSWERS_UPDATE', pillarAnswers });
-          gameManager.broadcastToHosts({ type: 'PLAYERS_UPDATE', players: allPlayers });
-        }
+      if (type === 'CLIENT_PIPE_READY') {
+        if (!boundPlayerId) throw new Error('Join before entering a pipe');
+        gameManager.setPipeReady(boundPlayerId, data.ready === true, Number(data.pipeIndex));
         return;
       }
-
-      if (type === 'CLIENT_HEARTBEAT') {
-        if (boundPlayerId) {
-          dbManager.setPlayerConnection(boundPlayerId, true);
-        }
-        socket.send(JSON.stringify({ type: 'HEARTBEAT_ACK' }));
+      if (type === 'CLIENT_PIPE_ANSWER') {
+        if (!boundPlayerId) throw new Error('Join before answering');
+        const result = gameManager.submitPipeQuestAnswer(boundPlayerId, Number(data.pipeIndex),
+          Number(data.questionId), String(data.selectedOption || ''));
+        send(result);
+        send(gameManager.getPipeQuestPayload(boundPlayerId));
         return;
       }
-
-      // =======================================================================
-      // PROJECTOR MESSAGES
-      // =======================================================================
+      if (type === 'CLIENT_HEARTBEAT') { send({ type: 'HEARTBEAT_ACK' }); return; }
       if (type === 'PROJECTOR_CONNECT') {
+        if (boundPlayerId || isHost) throw new Error('This connection already has a role');
         isProjector = true;
         gameManager.registerProjectorSocket(socket);
         return;
       }
-
-      // =======================================================================
-      // HOST MESSAGES (Protected with PIN)
-      // =======================================================================
       if (type === 'HOST_AUTH') {
-        const { pin } = data;
-        if (pin === HOST_PIN) {
-          isHost = true;
-          gameManager.registerHostSocket(socket);
-          socket.send(JSON.stringify({ type: 'HOST_AUTH_SUCCESS' }));
-        } else {
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Invalid Admin PIN' }));
-        }
+        if (boundPlayerId || isProjector) throw new Error('This connection already has a role');
+        if (!pinMatches(data.pin)) { send({ type: 'HOST_AUTH_FAILED', message: 'Invalid host PIN' }); return; }
+        isHost = true;
+        gameManager.registerHostSocket(socket);
+        send({ type: 'HOST_AUTH_SUCCESS' });
         return;
       }
-
-      // Verify host privileges for remaining commands
-      if (!isHost) {
-        socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Unauthorized host action' }));
-        return;
-      }
-
+      if (!isHost) throw new Error('Host authentication required');
       switch (type) {
-        case 'HOST_START_LEVEL':
-          gameManager.startLevel(data.level || 1);
-          break;
-
-        case 'HOST_OPEN_QUESTION':
-          gameManager.openQuestion(data.questionId);
-          break;
-
-        case 'HOST_PAUSE_TIMER':
-          gameManager.pauseTimer();
-          break;
-
-        case 'HOST_RESUME_TIMER':
-          gameManager.resumeTimer();
-          break;
-
-        case 'HOST_EXTEND_TIMER':
-          gameManager.extendTimer(data.seconds || 10);
-          break;
-
-        case 'HOST_LOCK_QUESTION':
-          gameManager.lockQuestion();
-          break;
-
-        case 'HOST_REVEAL_ANSWER':
-          gameManager.revealAnswer();
-          break;
-
-        case 'HOST_SHOW_LEADERBOARD':
-          gameManager.showLeaderboard();
-          break;
-
-        case 'HOST_CUTOFF_L2':
-          gameManager.executeCutoff(2);
-          break;
-
-        case 'HOST_CUTOFF_L3':
-          gameManager.executeCutoff(3);
-          break;
-
-        case 'HOST_START_BOWSER_STAGE':
-          gameManager.startBowserStage();
-          break;
-
+        case 'HOST_START_LEVEL': gameManager.startLevel(Number(data.level)); break;
+        case 'HOST_OPEN_QUESTION': gameManager.openQuestion(Number(data.questionId)); break;
+        case 'HOST_PAUSE_TIMER': gameManager.pauseTimer(); break;
+        case 'HOST_RESUME_TIMER': gameManager.resumeTimer(); break;
+        case 'HOST_EXTEND_TIMER': gameManager.extendTimer(Number(data.seconds || 10)); break;
+        case 'HOST_LOCK_QUESTION': gameManager.lockQuestion(); break;
+        case 'HOST_REVEAL_ANSWER': gameManager.revealAnswer(); break;
+        case 'HOST_VOID_QUESTION': gameManager.voidCurrentQuestion(); break;
+        case 'HOST_SHOW_LEADERBOARD': gameManager.showLeaderboard(); break;
+        case 'HOST_CUTOFF_L2': gameManager.executeCutoff(2); break;
+        case 'HOST_CUTOFF_L3': gameManager.executeCutoff(3); break;
+        case 'HOST_TRIGGER_SUDDEN_DEATH': gameManager.triggerSuddenDeath(); break;
+        case 'HOST_START_BOWSER_STAGE': gameManager.startBowserStage(); break;
+        case 'HOST_SELECT_SPEAKER': gameManager.selectSpeaker(String(data.finalist_id)); break;
+        case 'HOST_SPEAKER_START': gameManager.speakerStart(); break;
+        case 'HOST_SPEAKER_PAUSE': gameManager.speakerPause(); break;
+        case 'HOST_SPEAKER_RESET': gameManager.speakerReset(); break;
         case 'HOST_SUBMIT_JUDGE_SCORE':
-          gameManager.submitJudgeScore({
-            finalist_id: data.finalist_id,
-            judge_name: data.judge_name || 'DCC Judge',
-            clarity_score: Number(data.clarity_score) || 0,
-            reasoning_score: Number(data.reasoning_score) || 0,
-            judgement_score: Number(data.judgement_score) || 0,
-            communication_score: Number(data.communication_score) || 0,
-            remarks: data.remarks || ''
-          });
+          gameManager.submitJudgeScore({ finalist_id: String(data.finalist_id), judge_name: String(data.judge_name),
+            clarity_score: Number(data.clarity_score), reasoning_score: Number(data.reasoning_score),
+            judgement_score: Number(data.judgement_score), communication_score: Number(data.communication_score),
+            remarks: String(data.remarks || '') });
           break;
-
-        case 'HOST_FINISH_AND_PODIUM':
-          gameManager.finishAndShowPodium();
+        case 'HOST_SUBMIT_FINAL_TIEBREAK':
+          gameManager.submitFinalTiebreak({ finalist_id: String(data.finalist_id), judge_name: String(data.judge_name),
+            round_no: Number(data.round_no), clarity_score: Number(data.clarity_score), reasoning_score: Number(data.reasoning_score) });
           break;
-
-        case 'HOST_RESET_GAME':
-          gameManager.resetGame();
+        case 'HOST_VERIFY_RESULTS': gameManager.verifyResults(); break;
+        case 'HOST_FINISH_AND_PODIUM': gameManager.finishAndShowPodium(); break;
+        case 'HOST_RESET_GAME': gameManager.resetGame(); break;
+        case 'HOST_RECOVER_PLAYER': {
+          const { sessionToken, playerId } = dbManager.reissueSession(String(data.studentId));
+          gameManager.disconnectPlayer(playerId);
+          send({ type: 'RECOVERY_TOKEN', studentId: String(data.studentId), sessionToken });
           break;
-
-        default:
-          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: `Unknown host action: ${type}` }));
+        }
+        default: throw new Error(`Unknown host action: ${type}`);
       }
-    } catch (err: any) {
-      console.error('[WS Error]', err);
-      socket.send(JSON.stringify({ type: 'ERROR_MSG', message: err.message || 'Internal server error' }));
+    } catch (error) {
+      send({ type: 'ERROR_MSG', message: error instanceof Error ? error.message : 'Invalid request' });
     }
   });
 
   socket.on('close', () => {
-    if (boundPlayerId) {
-      gameManager.unregisterPlayerSocket(boundPlayerId, socket);
-    }
-    if (isHost) {
-      gameManager.unregisterHostSocket(socket);
-    }
-    if (isProjector) {
-      gameManager.unregisterProjectorSocket(socket);
-    }
+    if (boundPlayerId) gameManager.unregisterPlayerSocket(boundPlayerId, socket);
+    if (isHost) gameManager.unregisterHostSocket(socket);
+    if (isProjector) gameManager.unregisterProjectorSocket(socket);
   });
-
-  socket.on('error', (err) => {
-    console.error('[Socket Error]', err);
-  });
+  socket.on('error', (error) => console.error('[Socket Error]', error));
 }
-

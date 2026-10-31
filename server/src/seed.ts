@@ -2,13 +2,10 @@ import { dbManager } from './db.js';
 
 export function seedQuestions() {
   const db = (dbManager as any).db;
-
-  // Clear existing questions safely
-  db.exec('PRAGMA foreign_keys = OFF;');
-  db.exec('DELETE FROM player_answers;');
-  db.exec('DELETE FROM questions;');
-  db.exec("DELETE FROM sqlite_sequence WHERE name IN ('questions', 'player_answers');");
-  db.exec('PRAGMA foreign_keys = ON;');
+  const answerCount = db.prepare('SELECT COUNT(*) AS count FROM player_answers').get().count;
+  const pipeAnswerCount = db.prepare('SELECT COUNT(*) AS count FROM pipe_quest_answers').get().count;
+  const playedCount = db.prepare('SELECT COUNT(*) AS count FROM opened_questions').get().count;
+  if (answerCount > 0 || pipeAnswerCount > 0 || playedCount > 0) throw new Error('Refusing to reseed: this database contains played questions or answers. Use a fresh DATA_DIR for a new event.');
 
   const questions = [
     // =========================================================================
@@ -226,7 +223,7 @@ export function seedQuestions() {
     },
 
     // =========================================================================
-    // LEVEL 2: QUESTION BLOCK — MYTH-BUSTING & RED FLAGS (20 Questions)
+    // LEVEL 2: PIPE RUN — MYTH-BUSTING & RED FLAGS (20 Questions)
     // Categories: 'MYTH OR FACT?', 'CHOOSE WISELY', 'RED FLAG'
     // =========================================================================
     {
@@ -239,7 +236,7 @@ export function seedQuestions() {
       option_d: 'Forward the message to batchmates to share the opportunity',
       correct_option: 'C',
       explanation: 'Requiring fees for job offers, training certificates, or security deposits is the #1 hallmark of recruitment fraud.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 1
     },
@@ -248,26 +245,26 @@ export function seedQuestions() {
       category: 'MYTH OR FACT?',
       prompt: 'Myth or Fact: "Getting an employee referral guarantees you will receive an interview shortlist or offer letter."',
       option_a: 'FACT — Referrals bypass all technical screening rounds automatically',
-      option_b: 'MYTH — A referral usually ensures a recruiter views your resume, but qualification depends on your skills',
+      option_b: 'MYTH — A referral may help a profile get noticed, but it guarantees neither an interview nor an offer',
       option_c: 'FACT — Companies are legally obligated to hire referred candidates',
       option_d: 'MYTH — Referrals decrease your chances because recruiters scrutinize you more harshly',
       correct_option: 'B',
-      explanation: 'Referrals get your resume past the top of the pile, but you must still pass resume screening, coding assessments, and technical rounds.',
-      points: 150,
+      explanation: 'Referral processes vary by employer. A referral does not replace the stated selection criteria.',
+      points: 100,
       time_limit_sec: 25,
       sort_order: 2
     },
     {
       level: 2,
       category: 'CHOOSE WISELY',
-      prompt: 'You have 6 weeks during summer break. Which path yields the greatest career advancement?',
+      prompt: 'You want evidence of your software skills for an internship application in six weeks. Which plan gives the clearest evidence?',
       option_a: 'Watch 10 different tutorial playlists in 5 languages without writing any independent code',
       option_b: 'Build one robust, deployed full-stack project with documentation, unit tests, and real user authentication',
       option_c: 'Memorize answers to 200 interview trivia questions without coding',
       option_d: 'Add every trending buzzword (Web3, AI, Cloud, Quantum) to your resume without projects',
       correct_option: 'B',
-      explanation: 'Depth and deployment beat shallow tutorial watching. Engineering recruiters look for proof that you can ship and debug software.',
-      points: 150,
+      explanation: 'A finished project with clear documentation gives an interviewer specific work to discuss. Different goals may call for a different plan.',
+      points: 100,
       time_limit_sec: 30,
       sort_order: 3
     },
@@ -276,12 +273,12 @@ export function seedQuestions() {
       category: 'RED FLAG',
       prompt: 'You receive an internship offer letter from an HR manager using the email "careers-microsoft@gmail.com" instead of an official domain. Is this normal?',
       option_a: 'Yes — Corporate HRs commonly use free personal Gmail accounts for privacy',
-      option_b: 'STRONG RED FLAG — Established companies communicate exclusively via their official verified domain names',
+      option_b: 'Warning sign — verify the sender and offer through the company’s official website or known contact',
       option_c: 'Yes — As long as the company logo is attached in the PDF header',
       option_d: 'Normal only for early-year undergraduate internships',
       correct_option: 'B',
-      explanation: 'Scammers frequently spoof corporate logos using generic `@gmail.com`, `@outlook.com`, or fake domains (e.g., `careers-micros0ft.com`).',
-      points: 150,
+      explanation: 'A company name in an email address or PDF does not prove authenticity. Contact the employer using independently verified details.',
+      points: 100,
       time_limit_sec: 25,
       sort_order: 4
     },
@@ -295,21 +292,21 @@ export function seedQuestions() {
       option_d: 'MYTH — Open source contributions are considered a negative signal by traditional firms',
       correct_option: 'B',
       explanation: 'Active public PRs demonstrate real-world code reviews, Git proficiency, and the ability to read existing codebases.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 5
     },
     {
       level: 2,
       category: 'CHOOSE WISELY',
-      prompt: 'You are offered two internships. Offer A: ₹30,000 stipend at a marketing firm to copy-paste spreadsheet data. Offer B: ₹12,000 stipend at a tech firm with direct mentoring from a Staff Engineer on cloud backend services. Which is wiser for a CS student?',
+      prompt: 'Offer A pays ₹30,000 for data-entry work. Offer B pays ₹12,000 for mentored backend work. Before choosing, what should a CS student compare?',
       option_a: 'Always Offer A — Stipend amount is the only metric that matters',
-      option_b: 'Offer B — The compound value of engineering mentorship, production code, and tech resume equity far exceeds the short-term stipend delta',
+      option_b: 'Financial needs, actual duties, mentorship, written terms, and personal career goals',
       option_c: 'Reject both and wait for a FAANG remote internship',
       option_d: 'Accept Offer A and pay someone else to do the spreadsheet work',
       correct_option: 'B',
-      explanation: 'Early career internships should optimize for learning curve and technical equity. High-stipend non-technical work does not prepare you for software engineering roles.',
-      points: 150,
+      explanation: 'Either offer can be reasonable in context. A strong decision considers both financial needs and the quality of the role.',
+      points: 100,
       time_limit_sec: 30,
       sort_order: 6
     },
@@ -318,12 +315,12 @@ export function seedQuestions() {
       category: 'RED FLAG',
       prompt: 'An internship agreement contains a clause stating: "Candidate must pay a penalty of ₹50,000 if they leave before 12 months, and no stipend is paid during the first 3 months." What does this represent?',
       option_a: 'Standard industry policy for software interns',
-      option_b: 'Predatory employment bond and unfair labor practice; do not sign without legal/university counsel',
+      option_b: 'Concerning terms — seek written clarification and university or legal advice before signing',
       option_c: 'A sign of high commitment demanded by elite startups',
       option_d: 'A legal requirement enforced by placement committees',
       correct_option: 'B',
-      explanation: 'Excessive punitive exit penalties combined with unpaid initial periods are predatory and legally questionable.',
-      points: 150,
+      explanation: 'Understand the full terms and consequences before signing. The clause needs careful independent review.',
+      points: 100,
       time_limit_sec: 25,
       sort_order: 7
     },
@@ -337,7 +334,7 @@ export function seedQuestions() {
       option_d: 'MYTH — Tech stacks are never tested in technical interviews',
       correct_option: 'B',
       explanation: 'Depth in one language with strong CS principles is far easier to convert into new frameworks than surface-level knowledge of six.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 8
     },
@@ -351,21 +348,21 @@ export function seedQuestions() {
       option_d: 'A harmless HR procedure',
       correct_option: 'B',
       explanation: 'Never share personal banking OTPs, UPI PINs, or credentials with any recruiter or employer under any circumstance.',
-      points: 150,
+      points: 100,
       time_limit_sec: 20,
       sort_order: 9
     },
     {
       level: 2,
       category: 'CHOOSE WISELY',
-      prompt: 'You are preparing for campus placements next semester. How should you divide your preparation time between DSA and Projects?',
+      prompt: 'A role uses coding assessments and project interviews. Which preparation plan covers both parts?',
       option_a: '100% DSA, 0% Projects',
       option_b: '0% DSA, 100% Projects',
-      option_c: 'Balanced split (e.g. 60% DSA problem-solving + 40% building/refining 1-2 impactful projects)',
+      option_c: 'Plan for both DSA practice and the ability to explain and improve your own projects, adjusting time to the role',
       option_d: 'Spend all time preparing for HR questions',
       correct_option: 'C',
-      explanation: 'DSA unlocks the online assessment (OA) gates, while deep project understanding drives technical interview discussions.',
-      points: 150,
+      explanation: 'The right time split depends on the role and your starting point; prepare for each stated assessment.',
+      points: 100,
       time_limit_sec: 25,
       sort_order: 10
     },
@@ -379,21 +376,21 @@ export function seedQuestions() {
       option_d: 'MYTH — It is illegal to list personal code on resumes',
       correct_option: 'B',
       explanation: 'Cloned tutorial projects without genuine understanding fall apart in minutes when interviewers ask "Why did you choose this architecture over alternatives?".',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 11
     },
     {
       level: 2,
       category: 'RED FLAG',
-      prompt: 'A company posts an internship opening requiring 40 hours/week of work with a description: "Work for equity only, no stipend, build our complete mobile app and web portal from scratch alone." What is the reality?',
+      prompt: 'An internship asks you to build a complete app alone for equity only, with no written mentoring plan. What should you check before accepting?',
       option_a: 'A prestigious founding engineer opportunity',
-      option_b: 'Uncompensated labor exploiting students to build a commercial product without mentorship or security',
+      option_b: 'Get the workload, supervision, ownership, compensation, and equity terms in writing; seek advice before committing',
       option_c: 'A government-approved startup internship schema',
       option_d: 'The fastest path to becoming a CTO',
       correct_option: 'B',
-      explanation: 'Startups asking solo interns to build entire commercial products for free under vague "equity" promises rarely deliver viable experience or equity value.',
-      points: 150,
+      explanation: 'Vague equity and duties create risk. Clear written terms help you judge whether the opportunity fits your needs.',
+      points: 100,
       time_limit_sec: 25,
       sort_order: 12
     },
@@ -407,7 +404,7 @@ export function seedQuestions() {
       option_d: 'Give up immediately',
       correct_option: 'B',
       explanation: 'Systematic debugging and articulating your thought process clearly are key traits evaluated by tech leads.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 13
     },
@@ -421,7 +418,7 @@ export function seedQuestions() {
       option_d: 'MYTH — DSA is never timed in any interview',
       correct_option: 'B',
       explanation: 'Mastering Easy to Medium DSA patterns with clean, idiomatic code and verbal explanations clears the vast majority of campus rounds.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 14
     },
@@ -430,12 +427,12 @@ export function seedQuestions() {
       category: 'RED FLAG',
       prompt: 'You receive an unsolicited Telegram message congratulating you on being selected for a remote part-time job paying ₹3,000/day for "liking YouTube videos and rating Google Maps pins". What is this?',
       option_a: 'A legitimate social media marketing internship',
-      option_b: 'A classic "task-based" advance-fee investment scam that will eventually demand money to withdraw earnings',
+      option_b: 'A common task-scam pattern; verify independently and never send money to unlock earnings',
       option_c: 'A Google campus ambassador program',
       option_d: 'A fast way to earn college pocket money',
       correct_option: 'B',
       explanation: 'Task scams trick victims by giving small initial payouts before asking for deposits to unlock higher tiers, causing major financial losses.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 15
     },
@@ -449,7 +446,7 @@ export function seedQuestions() {
       option_d: '"Can I work 100% from home while attending another college?"',
       correct_option: 'B',
       explanation: 'Asking insightful questions demonstrates genuine curiosity, professional maturity, and active interest in the role.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 16
     },
@@ -463,7 +460,7 @@ export function seedQuestions() {
       option_d: 'MYTH — Resumes should be 80% hobbies and 20% technical',
       correct_option: 'B',
       explanation: 'Demonstrating leadership, club coordination, and ownership provides concrete proof of soft skills and organizational capability.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 17
     },
@@ -477,7 +474,7 @@ export function seedQuestions() {
       option_d: 'Recommended because it protects candidate privacy',
       correct_option: 'B',
       explanation: 'Without a verifiable legal entity and written contract, students have zero recourse in cases of non-payment or credential fraud.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 18
     },
@@ -491,7 +488,7 @@ export function seedQuestions() {
       option_d: 'Only attending hackathons for free meals and stickers',
       correct_option: 'A',
       explanation: 'Cross-functional teamwork and clear role division are the decisive factors in winning hackathons.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 19
     },
@@ -505,7 +502,7 @@ export function seedQuestions() {
       option_d: 'MYTH — Internships are only available after graduation',
       correct_option: 'B',
       explanation: 'Most top corporate internships recruit during 3rd year (5th/6th sem). 1st/2nd years are designed for fundamentals, exploration, and hackathons.',
-      points: 150,
+      points: 100,
       time_limit_sec: 25,
       sort_order: 20
     },
@@ -537,15 +534,62 @@ export function seedQuestions() {
       option_d: 'It does not matter as long as they know hooks',
       correct_option: 'B',
       explanation: 'Exaggerating timelines or claiming senior years of commercial experience in early undergrad triggers immediate skepticism.',
-      points: 150,
+      points: 100,
       time_limit_sec: 15,
       sort_order: 100
     }
   ];
 
+  questions.unshift({
+    level: 1, category: 'PRACTICE', is_practice: 1,
+    prompt: 'Practice: Which button locks in your answer?',
+    option_a: 'Tap one answer option', option_b: 'Refresh the page',
+    option_c: 'Close your browser', option_d: 'Ask a friend to answer',
+    correct_option: 'A', explanation: 'Tap one option. Practice earns no points.',
+    points: 0, time_limit_sec: 20, sort_order: -1
+  } as any);
+  questions.push(
+    { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which resume bullet most clearly shows your contribution?',
+      option_a: 'Worked on a website', option_b: 'Built a login page and tested it with 20 users',
+      option_c: 'Good at coding', option_d: 'Team player', correct_option: 'B',
+      explanation: 'Specific actions and outcomes make a contribution clear.', points: 0, time_limit_sec: 15, sort_order: 101 },
+    { level: 2, category: 'SUDDEN_DEATH', prompt: 'A recruiter requests your banking PIN to confirm an interview. What should you do?',
+      option_a: 'Share it after checking the logo', option_b: 'Share it only by phone',
+      option_c: 'Refuse and verify through official channels', option_d: 'Ask a friend to pay instead', correct_option: 'C',
+      explanation: 'Never share banking credentials with recruiters.', points: 0, time_limit_sec: 15, sort_order: 102 },
+    { level: 1, category: 'SUDDEN_DEATH', prompt: 'What does PPO stand for in an internship context?',
+      option_a: 'Pre-Placement Offer', option_b: 'Professional Project Outline',
+      option_c: 'Post-Payment Order', option_d: 'Placement Program Option', correct_option: 'A',
+      explanation: 'PPO means Pre-Placement Offer.', points: 0, time_limit_sec: 15, sort_order: 103 },
+    { level: 2, category: 'SUDDEN_DEATH', prompt: 'An internship offer asks for a registration fee before the interview. Which check comes first?',
+      option_a: 'Pay quickly to reserve a slot', option_b: 'Send an OTP as proof of identity',
+      option_c: 'Verify the company and role through its official contact details', option_d: 'Forward the fee request to classmates', correct_option: 'C',
+      explanation: 'Verify hiring claims independently before sharing money or sensitive details.', points: 0, time_limit_sec: 15, sort_order: 104 },
+    { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which detail makes a project description easier to assess?',
+      option_a: 'The number of emojis in the README', option_b: 'Your role, the problem, and a measurable result',
+      option_c: 'A list of every language you have heard of', option_d: 'A copied product slogan', correct_option: 'B',
+      explanation: 'Specific work and outcomes help a reviewer understand your contribution.', points: 0, time_limit_sec: 15, sort_order: 105 },
+    { level: 2, category: 'SUDDEN_DEATH', prompt: 'A recruiter sends an offer from a personal email address. What is the safest next step?',
+      option_a: 'Assume it is genuine because it mentions the company', option_b: 'Post your Aadhaar card in the reply',
+      option_c: 'Verify the offer with the company using an independently found official channel', option_d: 'Accept immediately', correct_option: 'C',
+      explanation: 'Independent verification helps catch impersonation and forged offers.', points: 0, time_limit_sec: 15, sort_order: 106 },
+    { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which interview answer best handles a question you cannot solve immediately?',
+      option_a: 'Explain your assumptions and test an approach aloud', option_b: 'Invent a result',
+      option_c: 'Stay silent until time expires', option_d: 'Copy an answer from another tab', correct_option: 'A',
+      explanation: 'Clear reasoning and honest assumptions show how you solve problems.', points: 0, time_limit_sec: 15, sort_order: 107 },
+    { level: 2, category: 'SUDDEN_DEATH', prompt: 'What should you compare when choosing between two internships?',
+      option_a: 'Only the advertised stipend', option_b: 'Learning, supervision, work, compensation, and written terms',
+      option_c: 'Only the company logo', option_d: 'Only the shortest commute', correct_option: 'B',
+      explanation: 'A sound decision weighs the work and mentorship alongside compensation.', points: 0, time_limit_sec: 15, sort_order: 108 }
+  );
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec('DELETE FROM questions; DELETE FROM sqlite_sequence WHERE name = \'questions\';');
+
   const stmt = db.prepare(`
-    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order, is_practice)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const q of questions) {
@@ -561,8 +605,14 @@ export function seedQuestions() {
       q.explanation || null,
       q.points,
       q.time_limit_sec,
-      q.sort_order
+      q.sort_order,
+      (q as any).is_practice || 0
     );
+  }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
 
   console.log(`[Seed] Seeded ${questions.length} Mario Career Quest questions successfully!`);

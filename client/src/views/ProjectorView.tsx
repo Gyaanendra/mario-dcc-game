@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import confetti from 'canvas-confetti';
 import { useGameSocket } from '../utils/socket';
+import { FINAL_FOLLOW_UP } from '../utils/gameContent';
 import { chiptune } from '../audio/chiptune';
 import {
   MarioSprite,
   LuigiSprite
 } from '../utils/pixelSprites';
-import { MarioRunnerCanvas } from '../components/MarioRunnerCanvas';
 import { Trophy, Clock, Users, Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 export const ProjectorView: React.FC = () => {
@@ -17,20 +17,35 @@ export const ProjectorView: React.FC = () => {
     answerStats,
     leaderboard,
     podium,
+    finalists,
     counts,
-    remainingSeconds
+    pipeReadyCount,
+    remainingSeconds,
+    speakerRemainingMs,
+    publicJoinUrl,
+    isConnected,
+    judgeReadiness
   } = useGameSocket('PROJECTOR');
 
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [isMuted, setIsMuted] = useState(chiptune.getMuted());
-  const [bossTimer, setBossTimer] = useState(120);
-  const [bossTimerRunning, setBossTimerRunning] = useState(false);
-  const bossIntervalRef = useRef<any>(null);
+  const [leaderboardPage, setLeaderboardPage] = useState(0);
+  const joinUrl = publicJoinUrl || `${window.location.origin}/play`;
+  const speaker = finalists.find(player => player.id === gameState.speaker_id);
+  const qualifiedPlayers = leaderboard.filter(player => gameState.current_level === 1 ? player.is_qualified_level2 : player.is_qualified_level3);
+  const displayedLeaderboard = qualifiedPlayers.length ? qualifiedPlayers : leaderboard;
+  const pageCount = Math.max(1, Math.ceil(displayedLeaderboard.length / 10));
+  const visiblePage = leaderboardPage % pageCount;
+
+  useEffect(() => {
+    if (gameState.game_status !== 'LEVEL_LEADERBOARD' || pageCount <= 1) return;
+    const interval = window.setInterval(() => setLeaderboardPage(page => page + 1), 8000);
+    return () => window.clearInterval(interval);
+  }, [gameState.game_status, pageCount]);
 
   // Generate QR code for player join URL
   useEffect(() => {
-    const origin = window.location.origin;
-    QRCode.toDataURL(origin, {
+    QRCode.toDataURL(joinUrl, {
       width: 260,
       margin: 1,
       color: {
@@ -40,7 +55,7 @@ export const ProjectorView: React.FC = () => {
     }).then((url) => {
       setQrDataUrl(url);
     });
-  }, []);
+  }, [joinUrl]);
 
   // Audio effects triggered by state transitions
   useEffect(() => {
@@ -50,6 +65,7 @@ export const ProjectorView: React.FC = () => {
   }, [remainingSeconds, gameState.game_status]);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (gameState.game_status === 'REVEAL') {
       chiptune.playPowerUp();
     } else if (gameState.game_status === 'BOWSER_STAGE') {
@@ -72,28 +88,6 @@ export const ProjectorView: React.FC = () => {
     }
   }, [gameState.game_status]);
 
-  // Boss challenge presentation 2-minute timer
-  useEffect(() => {
-    if (bossTimerRunning) {
-      bossIntervalRef.current = setInterval(() => {
-        setBossTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(bossIntervalRef.current);
-            setBossTimerRunning(false);
-            chiptune.playWrong();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (bossIntervalRef.current) clearInterval(bossIntervalRef.current);
-    }
-    return () => {
-      if (bossIntervalRef.current) clearInterval(bossIntervalRef.current);
-    };
-  }, [bossTimerRunning]);
-
   const toggleSound = () => {
     const muted = chiptune.toggleMute();
     setIsMuted(muted);
@@ -101,6 +95,8 @@ export const ProjectorView: React.FC = () => {
 
   return (
     <div className="w-screen h-screen bg-[#0E101D] text-white flex flex-col justify-between overflow-hidden relative select-none scanlines font-sans">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[url('/images/dcc-platform-world-clean.png')] bg-cover bg-center opacity-40" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-slate-950/80" aria-hidden="true" />
       {/* =========================================================================
           TOP STAGE HEADER
           ========================================================================= */}
@@ -124,7 +120,7 @@ export const ProjectorView: React.FC = () => {
           <span className="font-pixel text-xs text-yellow-300">
             {gameState.current_level === 0 && 'QUEST LOBBY'}
             {gameState.current_level === 1 && 'LEVEL 1: START YOUR QUEST'}
-            {gameState.current_level === 2 && 'LEVEL 2: QUESTION BLOCK'}
+            {gameState.current_level === 2 && 'LEVEL 2: PIPE RUN'}
             {gameState.current_level === 3 && "LEVEL 3: BOWSER'S BOSS BATTLE"}
           </span>
         </div>
@@ -134,10 +130,11 @@ export const ProjectorView: React.FC = () => {
           <div className="flex items-center gap-2 font-mono text-sm bg-zinc-800/80 px-3 py-1 rounded border border-zinc-700">
             <Users size={16} className="text-green-400" />
             <span className="text-green-400 font-bold">{counts.connected}</span>
-            <span className="text-zinc-400">/ {counts.total} Registered</span>
+            <span className="text-zinc-400">/ {counts.total} Registered · {pipeReadyCount} at pipes</span>
           </div>
           <button
             onClick={toggleSound}
+            aria-label={isMuted ? 'Unmute stage sounds' : 'Mute stage sounds'}
             className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-600 text-zinc-300"
           >
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -148,17 +145,15 @@ export const ProjectorView: React.FC = () => {
       {/* =========================================================================
           RETRO 2D MARIO RUNNER CANVAS (60 FPS Side-scroller)
           ========================================================================= */}
-      <MarioRunnerCanvas
-        status={gameState.game_status}
-        category={activeQuestion?.category}
-        height={210}
-        interactive={true}
-      />
+      <div className={`relative z-10 border-b-4 border-black bg-[url('/images/dcc-platform-world-clean.png')] bg-cover bg-center ${['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'REVEAL', 'PAUSED'].includes(gameState.game_status) ? 'h-[90px]' : 'h-[160px]'}`} aria-hidden="true">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-950/45" />
+      </div>
 
       {/* =========================================================================
           MAIN ARENA CONTENT AREA
           ========================================================================= */}
-      <main className="flex-1 p-6 flex flex-col justify-center items-center z-10 max-w-7xl mx-auto w-full overflow-y-auto">
+      <main className="flex-1 p-4 flex flex-col justify-center items-center z-10 max-w-7xl mx-auto w-full overflow-y-auto">
+        {!isConnected && <div role="status" className="absolute top-20 right-5 bg-red-950 border border-red-400 rounded-lg px-4 py-2 text-sm">Reconnecting to event server…</div>}
         {/* 1. LOBBY VIEW: QR CODE & INSTRUCTIONS */}
         {gameState.game_status === 'LOBBY' && (
           <div className="grid grid-cols-12 gap-8 items-center w-full max-w-5xl">
@@ -170,11 +165,11 @@ export const ProjectorView: React.FC = () => {
               <h1 className="text-4xl font-black font-pixel text-yellow-400 leading-tight drop-shadow-lg">
                 MASK ON.<br />LEVEL UP.
               </h1>
-              <p className="text-base text-zinc-300 leading-relaxed font-sans">
-                Scan the QR code on your phone to join the live arena. Answer placement and career questions, identify recruitment red flags, and face Bowser in the finale!
+              <p className="text-xl text-zinc-100 leading-relaxed font-sans">
+                Scan the QR code on your phone to join the live arena. Run and jump onto a pipe to unlock each question, then face Bowser in the finale!
               </p>
 
-              <div className="p-4 bg-[#171B30] border-2 border-zinc-700 rounded-xl space-y-2 font-mono text-xs">
+              <div className="p-4 bg-[#171B30] border-2 border-zinc-700 rounded-xl space-y-2 font-mono text-base">
                 <div className="flex items-center gap-2 text-yellow-300">
                   <span className="font-pixel text-[10px]">1.</span>
                   <span>Scan QR Code or visit URL on your smartphone</span>
@@ -185,7 +180,7 @@ export const ProjectorView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-zinc-300">
                   <span className="font-pixel text-[10px]">3.</span>
-                  <span>Top 50 advance to Level 2 • Top 10 battle Bowser!</span>
+                  <span>Jump onto a pipe to answer • Top 50 then top 10 advance!</span>
                 </div>
               </div>
             </div>
@@ -193,11 +188,12 @@ export const ProjectorView: React.FC = () => {
             {/* Right Column: High-Contrast QR Code Card */}
             <div className="col-span-5 flex flex-col items-center">
               <div className="p-4 bg-white rounded-2xl border-4 border-yellow-500 shadow-2xl pixel-box">
-                {qrDataUrl && <img src={qrDataUrl} alt="Join QR Code" className="w-56 h-56" />}
+                {qrDataUrl && <img src={qrDataUrl} alt={`Scan to join at ${joinUrl}`} className="w-64 h-64" />}
               </div>
               <div className="mt-3 text-center">
                 <div className="font-pixel text-[10px] text-zinc-400">JOIN URL:</div>
-                <div className="font-mono text-base font-bold text-yellow-300 mt-0.5">{window.location.origin}</div>
+                <div className="font-mono text-lg font-bold text-yellow-300 mt-0.5 break-all">{joinUrl}</div>
+                <div className="text-sm text-slate-200 mt-2">Correct answer: 100 points + up to 20 speed points. Practice does not count.</div>
               </div>
             </div>
           </div>
@@ -211,12 +207,12 @@ export const ProjectorView: React.FC = () => {
             </div>
             <h1 className="font-pixel text-3xl text-yellow-400 drop-shadow-md">
               {gameState.current_level === 1 && 'LEVEL 1 — START YOUR QUEST'}
-              {gameState.current_level === 2 && 'LEVEL 2 — QUESTION BLOCK'}
+              {gameState.current_level === 2 && 'LEVEL 2 — PIPE RUN'}
               {gameState.current_level === 3 && "LEVEL 3 — BOWSER'S BOSS CHALLENGE"}
             </h1>
             <p className="text-base text-zinc-300 font-sans leading-relaxed">
               {gameState.current_level === 1 &&
-                'Career and placement fundamentals. Speed and accuracy earn coins. Top 50 qualify for Level 2!'}
+                'Career and placement fundamentals. Speed and accuracy earn points. Top 50 qualify for Level 2!'}
               {gameState.current_level === 2 &&
                 'Myth-busting and recruitment red flags. Read every option carefully. Top 10 advance to the Final Boss!'}
               {gameState.current_level === 3 &&
@@ -231,12 +227,12 @@ export const ProjectorView: React.FC = () => {
           gameState.game_status === 'REVEAL' ||
           gameState.game_status === 'PAUSED') &&
           activeQuestion && (
-            <div className="w-full max-w-4xl space-y-4">
+            <div className="w-full max-w-4xl space-y-3">
               {/* Question Top Header Bar */}
               <div className="flex items-center justify-between bg-[#171B30] p-3 rounded-xl border-2 border-zinc-700 shadow-lg">
                 <div className="flex items-center gap-3">
                   <div className="px-3 py-1 bg-zinc-900 border border-zinc-700 rounded font-pixel text-xs text-yellow-400">
-                    QUESTION #{activeQuestion.id}
+                    {activeQuestion.is_practice ? 'PRACTICE' : activeQuestion.category === 'SUDDEN_DEATH' ? 'SUDDEN DEATH' : `QUESTION #${activeQuestion.sort_order}`}
                   </div>
                   <div className="px-3 py-1 bg-black/50 border border-zinc-600 rounded font-mono text-xs font-bold text-sky-300">
                     {activeQuestion.category}
@@ -259,14 +255,14 @@ export const ProjectorView: React.FC = () => {
               </div>
 
               {/* Question Text Box */}
-              <div className="bg-[#171B30] border-2 border-zinc-700 p-5 rounded-2xl shadow-xl">
-                <h2 className="text-xl font-bold text-white leading-relaxed font-sans">
+              <div className="bg-[#171B30] border-2 border-zinc-700 p-4 rounded-2xl shadow-xl">
+                <h2 className="text-3xl font-bold text-white leading-snug font-sans">
                   {activeQuestion.prompt}
                 </h2>
               </div>
 
               {/* 4 Large High-Contrast Answer Option Cards */}
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 {[
                   { key: 'A', text: activeQuestion.option_a, color: 'border-red-500 bg-red-950/40 text-red-100', barColor: 'bg-red-500' },
                   { key: 'B', text: activeQuestion.option_b, color: 'border-blue-500 bg-blue-950/40 text-blue-100', barColor: 'bg-blue-500' },
@@ -284,7 +280,7 @@ export const ProjectorView: React.FC = () => {
                     return (
                       <div
                         key={opt.key}
-                        className={`p-4 rounded-xl border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
+                        className={`p-3 rounded-xl border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
                           isCorrect
                             ? 'border-green-400 bg-green-900/80 ring-4 ring-green-300 scale-[1.01] shadow-2xl'
                             : isRevealed
@@ -296,7 +292,7 @@ export const ProjectorView: React.FC = () => {
                           <span className="font-pixel text-xs px-2.5 py-1 bg-black/60 border border-white/40 rounded text-white shrink-0">
                             {opt.key}
                           </span>
-                          <span className="text-base font-semibold leading-snug font-sans">{opt.text}</span>
+                          <span className="text-2xl font-semibold leading-tight font-sans">{opt.text}</span>
                         </div>
 
                         {/* Answer Statistics Bar Chart on Reveal */}
@@ -321,11 +317,11 @@ export const ProjectorView: React.FC = () => {
 
               {/* Explanation Box on Reveal */}
               {gameState.game_status === 'REVEAL' && activeQuestion.explanation && (
-                <div className="bg-sky-950/80 border-2 border-sky-400 p-4 rounded-xl shadow-xl flex items-start gap-3 animate-fade-in">
+                <div className="bg-sky-950/80 border-2 border-sky-400 p-3 rounded-xl shadow-xl flex items-start gap-3 animate-fade-in">
                   <Sparkles size={20} className="text-yellow-400 shrink-0 mt-0.5" />
                   <div>
                     <div className="font-pixel text-xs text-sky-300 mb-0.5">CAREER TEACHING POINT</div>
-                    <p className="text-sm font-sans text-zinc-200 leading-relaxed">
+                    <p className="text-lg font-sans text-zinc-200 leading-relaxed">
                       {activeQuestion.explanation}
                     </p>
                   </div>
@@ -342,9 +338,10 @@ export const ProjectorView: React.FC = () => {
                 LEVEL {gameState.current_level} LEADERBOARD
               </h2>
               <p className="text-xs font-mono text-zinc-400 mt-0.5">
-                {gameState.current_level === 1 && 'Top 50 Qualify for Level 2 (Question Block)'}
+                {gameState.current_level === 1 && 'Top 50 Qualify for Level 2 (Pipe Run)'}
                 {gameState.current_level === 2 && 'Top 10 Qualify for Bowser Boss Battle Finale'}
               </p>
+              <p className="text-sm font-mono text-yellow-200 mt-2">{qualifiedPlayers.length ? `${qualifiedPlayers.length} qualified` : 'Scores pending cut-off'} · Page {visiblePage + 1}/{pageCount}</p>
             </div>
 
             <div className="bg-[#171B30] border-2 border-zinc-700 rounded-2xl p-4 shadow-xl max-h-[42vh] overflow-y-auto">
@@ -353,13 +350,14 @@ export const ProjectorView: React.FC = () => {
                   <tr className="border-b-2 border-zinc-700 font-pixel text-xs text-yellow-400">
                     <th className="py-2 px-3">RANK</th>
                     <th className="py-2 px-3">PLAYER</th>
-                    <th className="py-2 px-3">ROLL NO</th>
-                    <th className="py-2 px-3 text-right">COINS</th>
+                    <th className="py-2 px-3 text-right">ROUND POINTS</th>
                     <th className="py-2 px-3 text-center">STATUS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800 text-xs">
-                  {leaderboard.slice(0, 10).map((player, idx) => (
+                  {displayedLeaderboard.slice(visiblePage * 10, visiblePage * 10 + 10).map((player, pageIndex) => {
+                    const idx = visiblePage * 10 + pageIndex;
+                    return (
                     <tr
                       key={player.id}
                       className={`hover:bg-zinc-800/40 ${
@@ -376,9 +374,8 @@ export const ProjectorView: React.FC = () => {
                         {player.avatar_id === 'luigi' ? <LuigiSprite size={20} /> : <MarioSprite size={20} />}
                         <span className="font-sans font-bold text-white">{player.name}</span>
                       </td>
-                      <td className="py-2 px-3 text-zinc-400">{player.student_id}</td>
                       <td className="py-2 px-3 text-right font-pixel text-xs text-yellow-400">
-                        {player.total_coins}
+                        {gameState.current_level === 1 ? player.level1_score : player.level2_score}
                       </td>
                       <td className="py-2 px-3 text-center">
                         {(gameState.current_level === 1 ? player.is_qualified_level2 : player.is_qualified_level3) ? (
@@ -390,7 +387,7 @@ export const ProjectorView: React.FC = () => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
@@ -412,25 +409,9 @@ export const ProjectorView: React.FC = () => {
                 <div className="text-right">
                   <div className="text-[9px] font-mono text-zinc-400">SPEAKER CLOCK</div>
                   <div className="font-pixel text-xl text-yellow-400">
-                    {Math.floor(bossTimer / 60)}:{(bossTimer % 60).toString().padStart(2, '0')}
+                    {Math.floor(speakerRemainingMs / 60000)}:{(Math.ceil(speakerRemainingMs / 1000) % 60).toString().padStart(2, '0')}
                   </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setBossTimerRunning(!bossTimerRunning)}
-                    className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-[10px] font-pixel rounded"
-                  >
-                    {bossTimerRunning ? 'PAUSE' : 'START'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setBossTimerRunning(false);
-                      setBossTimer(120);
-                    }}
-                    className="px-2.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-[9px] font-mono rounded"
-                  >
-                    RESET
-                  </button>
+                  <div className="text-sm text-white">{speaker?.name || 'Waiting for finalist'}</div>
                 </div>
               </div>
             </div>
@@ -457,6 +438,8 @@ export const ProjectorView: React.FC = () => {
               <div className="p-3 bg-black/40 border border-zinc-700 rounded-lg text-xs font-mono text-yellow-300">
                 <strong>Question for Finalist:</strong> Which offer do you choose, what trade-off do you accept, and what 2 things do you verify before signing?
               </div>
+              <p className="text-sm text-purple-100">Judge scores recorded: {judgeReadiness?.completed || 0}/{judgeReadiness?.expected || 0}. Final results appear after independent verification.</p>
+              {judgeReadiness?.followUpRequired && <div className="rounded-lg border-2 border-yellow-400 bg-purple-950 p-3 text-sm"><strong className="text-yellow-300">COMMON FOLLOW-UP FOR TIED FINALISTS</strong><p className="mt-1 text-white">{FINAL_FOLLOW_UP}</p></div>}
             </div>
           </div>
         )}
@@ -479,7 +462,6 @@ export const ProjectorView: React.FC = () => {
                 <div className="flex flex-col items-center">
                   <LuigiSprite size={40} />
                   <div className="mt-1 text-sm font-bold text-white font-sans">{podium[1].name}</div>
-                  <div className="text-[10px] font-mono text-zinc-400">{podium[1].student_id}</div>
                   <div className="mt-2 w-40 h-32 bg-zinc-700 border-4 border-zinc-500 rounded-t-xl flex flex-col items-center justify-center pixel-box">
                     <span className="font-pixel text-2xl text-zinc-300">2ND</span>
                     <span className="text-[10px] font-mono text-zinc-400 mt-1">Score: {podium[1].total_score}/20</span>
@@ -492,7 +474,6 @@ export const ProjectorView: React.FC = () => {
                 <div className="flex flex-col items-center">
                   <MarioSprite size={52} className="animate-pulse" />
                   <div className="mt-1 text-base font-black text-yellow-300 font-sans">{podium[0].name}</div>
-                  <div className="text-[10px] font-mono text-yellow-400">{podium[0].student_id}</div>
                   <div className="mt-2 w-48 h-44 bg-yellow-600 border-4 border-yellow-300 rounded-t-2xl flex flex-col items-center justify-center pixel-box shadow-2xl">
                     <Trophy size={28} className="text-yellow-200 mb-1" />
                     <span className="font-pixel text-3xl text-white">1ST</span>
@@ -506,7 +487,6 @@ export const ProjectorView: React.FC = () => {
                 <div className="flex flex-col items-center">
                   <MarioSprite size={40} />
                   <div className="mt-1 text-sm font-bold text-white font-sans">{podium[2].name}</div>
-                  <div className="text-[10px] font-mono text-zinc-400">{podium[2].student_id}</div>
                   <div className="mt-2 w-40 h-24 bg-amber-800 border-4 border-amber-600 rounded-t-xl flex flex-col items-center justify-center pixel-box">
                     <span className="font-pixel text-xl text-amber-300">3RD</span>
                     <span className="text-[10px] font-mono text-amber-200 mt-1">Score: {podium[2].total_score}/20</span>
