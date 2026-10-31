@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { PlayerView } from './views/PlayerView';
 import { ProjectorView } from './views/ProjectorView';
 import { HostView } from './views/HostView';
+
+const GameView = lazy(() => import('./game/GameView').then(m => ({ default: m.GameView })));
 
 export const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -14,13 +16,27 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Quick route selector bar when testing locally
   const showNavHelper = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
     setCurrentPath(path);
   };
+
+  if (currentPath === '/play' || currentPath === '/game') {
+    return (
+      <Suspense fallback={
+        <div className="fixed inset-0 bg-[#0D101D] flex items-center justify-center">
+          <div className="text-center">
+            <div className="font-pixel text-yellow-400 text-lg mb-2">LOADING...</div>
+            <div className="text-zinc-400 text-xs font-mono">Preparing your quest</div>
+          </div>
+        </div>
+      }>
+        <GameView />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="relative min-h-screen">
@@ -40,10 +56,18 @@ export const App: React.FC = () => {
           <button
             onClick={() => navigateTo('/')}
             className={`px-2 py-1 rounded transition-colors ${
-              currentPath === '/' || currentPath === '/play' ? 'bg-red-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
+              currentPath === '/' ? 'bg-red-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
             }`}
           >
-            📱 Phone
+            Phone
+          </button>
+          <button
+            onClick={() => navigateTo('/play')}
+            className={`px-2 py-1 rounded transition-colors ${
+              currentPath === '/play' ? 'bg-green-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
+            }`}
+          >
+            Game
           </button>
           <button
             onClick={() => navigateTo('/projector')}
@@ -51,7 +75,7 @@ export const App: React.FC = () => {
               currentPath === '/projector' ? 'bg-yellow-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
             }`}
           >
-            📽️ Projector
+            Projector
           </button>
           <button
             onClick={() => navigateTo('/host')}
@@ -59,7 +83,7 @@ export const App: React.FC = () => {
               currentPath === '/host' ? 'bg-purple-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
             }`}
           >
-            🎛️ Host Panel
+            Host
           </button>
         </div>
       )}
