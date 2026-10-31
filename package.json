@@ -1,0 +1,26 @@
+{
+  "name": "mario-career-quest-dcc",
+  "version": "1.0.0",
+  "description": "Dean Career Cloud (DCC) - Mario Career Quest Event Platform",
+  "private": true,
+  "scripts": {
+    "start": "cd server && npm start",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm run dev",
+    "client:build": "cd client && npm run build",
+    "seed": "cd server && npm run seed",
+    "test:load": "cd server && npx tsx src/loadTest.ts"
+  },
+  "keywords": [
+    "mario-career-quest",
+    "bennett-university",
+    "dcc",
+    "game-show",
+    "fastify",
+    "websockets",
+    "sqlite"
+  ],
+  "author": "Dean Career Cloud (DCC) - SCSET - Bennett University",
+  "license": "ISC"
+}
+

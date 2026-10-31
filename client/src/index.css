@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@400;600;700;900&display=swap');
+@import "tailwindcss";
+
+:root {
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-body: 'Outfit', sans-serif;
+  --mario-red: #E52521;
+  --mario-blue: #0022AA;
+  --mario-sky: #5C94FC;
+  --coin-gold: #FBD000;
+  --pipe-green: #00A800;
+  --brick-brown: #B84418;
+  --bowser-purple: #3A0066;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: #121420;
+  color: #F3F4F6;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow-x: hidden;
+}
+
+.font-pixel {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.05em;
+}
+
+/* NES / Arcade pixel borders */
+.pixel-box {
+  box-shadow: 
+    -4px 0 0 0 #000,
+    4px 0 0 0 #000,
+    0 -4px 0 0 #000,
+    0 4px 0 0 #000;
+}
+
+.pixel-box-sm {
+  box-shadow: 
+    -2px 0 0 0 #000,
+    2px 0 0 0 #000,
+    0 -2px 0 0 #000,
+    0 2px 0 0 #000;
+}
+
+.pixel-box-gold {
+  box-shadow: 
+    -4px 0 0 0 #FBD000,
+    4px 0 0 0 #FBD000,
+    0 -4px 0 0 #FBD000,
+    0 4px 0 0 #FBD000,
+    0 0 15px rgba(251, 208, 0, 0.4);
+}
+
+.pixel-btn {
+  position: relative;
+  border: 4px solid #000;
+  box-shadow: inset -4px -4px 0px 0px rgba(0, 0, 0, 0.35), inset 4px 4px 0px 0px rgba(255, 255, 255, 0.35);
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+
+.pixel-btn:active {
+  transform: translateY(3px);
+  box-shadow: inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+}
+
+/* Retro CRT scanline effect (optional subtle overlay) */
+.scanlines {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.15) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+::-webkit-scrollbar-thumb {
+  background: #e52521;
+  border-radius: 4px;
+}
