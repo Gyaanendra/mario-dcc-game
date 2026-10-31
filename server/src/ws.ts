@@ -49,6 +49,11 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
           : { type: 'ANSWER_LOCKED', selectedOption: String(data.selectedOption).toUpperCase() });
         return;
       }
+      if (type === 'CLIENT_PIPE_READY') {
+        if (!boundPlayerId) throw new Error('Join before entering a pipe');
+        gameManager.setPipeReady(boundPlayerId, data.ready === true);
+        return;
+      }
       if (type === 'CLIENT_HEARTBEAT') { send({ type: 'HEARTBEAT_ACK' }); return; }
       if (type === 'PROJECTOR_CONNECT') {
         if (boundPlayerId || isHost) throw new Error('This connection already has a role');

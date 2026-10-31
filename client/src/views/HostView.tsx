@@ -7,7 +7,7 @@ const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""'
 
 export const HostView: React.FC = () => {
   const {
-    isConnected, isAuthenticated, gameState, answerStats, counts, leaderboard, finalists,
+    isConnected, isAuthenticated, gameState, answerStats, counts, pipeReadyCount, leaderboard, finalists,
     activeQuestion, lastError, clearError, send, remainingSeconds, speakerRemainingMs,
     levelQuestions, cutoff, judgeNames, judgeReadiness, judgeMatrix, recoveryToken, authenticateHost
   } = useGameSocket('HOST');
@@ -70,7 +70,7 @@ export const HostView: React.FC = () => {
         <div><p className="font-pixel text-xs text-yellow-300 mb-2">DEAN CAREER CLOUD · BENNETT UNIVERSITY</p><h1 className="text-3xl font-black">Mario Career Quest</h1><p className="text-slate-300 mt-1">Live event control · Level {gameState.current_level} · {gameState.game_status.replaceAll('_', ' ')}</p></div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className={`flex items-center gap-2 ${isConnected ? 'text-green-300' : 'text-red-300'}`}>{isConnected ? <Wifi size={18} /> : <WifiOff size={18} />}{isConnected ? 'Connected' : 'Reconnecting'}</span>
-          <span className="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-lg"><Users size={18} />{counts.connected}/{counts.total} online</span>
+          <span className="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-lg"><Users size={18} />{counts.connected}/{counts.total} online · {pipeReadyCount} at pipes</span>
           <button onClick={exportResults} className="flex items-center gap-2 px-3 py-2 min-h-11 rounded-lg border border-slate-500 hover:bg-slate-800 focus-visible:outline-4 focus-visible:outline-yellow-300"><Download size={17} /> Export CSV</button>
         </div>
       </header>
@@ -80,6 +80,7 @@ export const HostView: React.FC = () => {
           <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="round-controls">
             <h2 id="round-controls" className="font-pixel text-sm text-yellow-300">ROUND CONTROL</h2>
             <p className="text-sm text-slate-200">Scoring: 100 coins per correct answer plus up to 20 speed coins. Level 2 starts fresh. Finalists are judged separately.</p>
+            <p className="text-sm text-sky-200">Ask players to stand on a pipe before opening a question. The header shows how many are ready.</p>
             <div className="grid sm:grid-cols-3 gap-3">
               <button onClick={() => startLevel(1)} disabled={gameState.game_status !== 'LOBBY'} className="event-button bg-red-600 disabled:opacity-40">Start Level 1</button>
               <button onClick={() => startLevel(2)} disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE'} className="event-button bg-blue-600 disabled:opacity-40">Start Level 2</button>

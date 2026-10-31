@@ -63,6 +63,7 @@ async function run() {
     ws.send(JSON.stringify({ type: 'CLIENT_JOIN', studentId: `LOAD${runId}${index}`, name: `Load player ${index}`, avatarId: 'mario' }));
     const identity = await joined;
     identities.push({ ws, token: identity.sessionToken, playerId: identity.player.id });
+    ws.send(JSON.stringify({ type: 'CLIENT_PIPE_READY', ready: true }));
     const delay = Math.floor(Math.random() * 3000);
     await new Promise(resolve => setTimeout(resolve, delay));
     const ack = waitFor(ws, data => data.type === 'ANSWER_LOCKED');

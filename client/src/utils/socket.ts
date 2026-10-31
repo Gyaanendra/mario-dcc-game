@@ -58,6 +58,7 @@ export interface SocketHookState {
   podium: any[];
   finalists: PlayerData[];
   counts: { total: number; connected: number };
+  pipeReadyCount: number;
   cutoff: CutoffData | null;
   judgeNames: string[];
   judgeReadiness: JudgeReadiness | null;
@@ -100,6 +101,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [podium, setPodium] = useState<any[]>([]);
   const [finalists, setFinalists] = useState<PlayerData[]>([]);
   const [counts, setCounts] = useState({ total: 0, connected: 0 });
+  const [pipeReadyCount, setPipeReadyCount] = useState(0);
   const [cutoff, setCutoff] = useState<CutoffData | null>(null);
   const [judgeNames, setJudgeNames] = useState<string[]>([]);
   const [judgeReadiness, setJudgeReadiness] = useState<JudgeReadiness | null>(null);
@@ -160,6 +162,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
             if (data.podium !== undefined) setPodium(data.podium);
             if (data.finalists !== undefined) setFinalists(data.finalists);
             if (data.counts) setCounts(data.counts);
+            if (data.pipeReadyCount !== undefined) setPipeReadyCount(data.pipeReadyCount);
             if (data.cutoff !== undefined) setCutoff(data.cutoff);
             if (data.judgeNames) setJudgeNames(data.judgeNames);
             if (data.judgeReadiness) setJudgeReadiness(data.judgeReadiness);
@@ -185,6 +188,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
           case 'TIMER_TICK': setRemainingSeconds(data.remainingSeconds); break;
           case 'SPEAKER_TICK': setSpeakerRemainingMs(data.remainingMs); break;
           case 'COUNTS_UPDATE': setCounts({ total: data.totalRegistered, connected: data.connectedPlayers }); break;
+          case 'PIPE_READY_COUNT': setPipeReadyCount(data.count); break;
           case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
           case 'RECOVERY_TOKEN': setRecoveryToken({ studentId: data.studentId, sessionToken: data.sessionToken }); break;
           case 'ERROR_MSG': setAnswerPending(false); setLastError(data.message); break;
@@ -237,7 +241,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const clearError = useCallback(() => setLastError(null), []);
 
   return { isConnected, isAuthenticated, isReconnecting, answerPending, gameState, player, activeQuestion,
-    myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, cutoff, judgeNames,
+    myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, pipeReadyCount, cutoff, judgeNames,
     judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, recoveryToken, lastError, remainingSeconds, speakerRemainingMs,
     send, joinAsPlayer, submitAnswer, authenticateHost, reconnectWithToken, clearError };
 }

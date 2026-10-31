@@ -8,7 +8,6 @@ import {
   MarioSprite,
   LuigiSprite
 } from '../utils/pixelSprites';
-import { MarioRunnerCanvas } from '../components/MarioRunnerCanvas';
 import { Trophy, Clock, Users, Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 export const ProjectorView: React.FC = () => {
@@ -20,6 +19,7 @@ export const ProjectorView: React.FC = () => {
     podium,
     finalists,
     counts,
+    pipeReadyCount,
     remainingSeconds,
     speakerRemainingMs,
     publicJoinUrl,
@@ -95,6 +95,8 @@ export const ProjectorView: React.FC = () => {
 
   return (
     <div className="w-screen h-screen bg-[#0E101D] text-white flex flex-col justify-between overflow-hidden relative select-none scanlines font-sans">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[url('/images/dcc-platform-world.png')] bg-cover bg-center opacity-40" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-slate-950/80" aria-hidden="true" />
       {/* =========================================================================
           TOP STAGE HEADER
           ========================================================================= */}
@@ -128,7 +130,7 @@ export const ProjectorView: React.FC = () => {
           <div className="flex items-center gap-2 font-mono text-sm bg-zinc-800/80 px-3 py-1 rounded border border-zinc-700">
             <Users size={16} className="text-green-400" />
             <span className="text-green-400 font-bold">{counts.connected}</span>
-            <span className="text-zinc-400">/ {counts.total} Registered</span>
+            <span className="text-zinc-400">/ {counts.total} Registered · {pipeReadyCount} at pipes</span>
           </div>
           <button
             onClick={toggleSound}
@@ -143,12 +145,9 @@ export const ProjectorView: React.FC = () => {
       {/* =========================================================================
           RETRO 2D MARIO RUNNER CANVAS (60 FPS Side-scroller)
           ========================================================================= */}
-      <MarioRunnerCanvas
-        status={gameState.game_status}
-        category={activeQuestion?.category}
-        height={['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'REVEAL', 'PAUSED'].includes(gameState.game_status) ? 90 : 160}
-        interactive={true}
-      />
+      <div className={`relative z-10 border-b-4 border-black bg-[url('/images/dcc-platform-world.png')] bg-cover bg-center ${['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'REVEAL', 'PAUSED'].includes(gameState.game_status) ? 'h-[90px]' : 'h-[160px]'}`} aria-hidden="true">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-950/45" />
+      </div>
 
       {/* =========================================================================
           MAIN ARENA CONTENT AREA
@@ -167,7 +166,7 @@ export const ProjectorView: React.FC = () => {
                 MASK ON.<br />LEVEL UP.
               </h1>
               <p className="text-xl text-zinc-100 leading-relaxed font-sans">
-                Scan the QR code on your phone to join the live arena. Answer placement and career questions, identify recruitment red flags, and face Bowser in the finale!
+                Scan the QR code on your phone to join the live arena. Run and jump onto a pipe to unlock each question, then face Bowser in the finale!
               </p>
 
               <div className="p-4 bg-[#171B30] border-2 border-zinc-700 rounded-xl space-y-2 font-mono text-base">
@@ -181,7 +180,7 @@ export const ProjectorView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-zinc-300">
                   <span className="font-pixel text-[10px]">3.</span>
-                  <span>Top 50 advance to Level 2 • Top 10 battle Bowser!</span>
+                  <span>Jump onto a pipe to answer • Top 50 then top 10 advance!</span>
                 </div>
               </div>
             </div>

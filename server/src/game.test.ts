@@ -29,7 +29,12 @@ test('practice is unscored, answers lock once, and reveal hides key until lock',
     x.manager.startLevel(1);
     x.manager.openQuestion(1);
     const before = x.manager.getPlayerSyncPayload(p.id);
-    assert.equal(before.activeQuestion?.correct_option, null);
+    assert.equal(before.activeQuestion, null);
+    assert.equal(before.canAnswer, false);
+    assert.throws(() => x.manager.submitAnswer(p.id, 1, 'A'), /Stand on a pipe/);
+    x.manager.setPipeReady(p.id, true);
+    assert.equal(x.manager.getPlayerSyncPayload(p.id).activeQuestion?.correct_option, null);
+    assert.equal(x.manager.getPlayerSyncPayload(p.id).canAnswer, true);
     assert.equal(x.manager.submitAnswer(p.id, 1, 'A').coinsAwarded, 0);
     assert.equal(x.manager.getPlayerSyncPayload(p.id).canAnswer, false);
     assert.equal(x.manager.getPlayerSyncPayload(p.id).isSpectator, false);
@@ -38,6 +43,8 @@ test('practice is unscored, answers lock once, and reveal hides key until lock',
     x.manager.lockQuestion();
     x.manager.revealAnswer();
     assert.equal(x.manager.getPlayerSyncPayload(p.id).activeQuestion?.correct_option, 'A');
+    x.manager.setPipeReady(p.id, false);
+    assert.equal(x.manager.getPlayerSyncPayload(p.id).activeQuestion, null);
   } finally { x.cleanup(); }
 });
 
@@ -62,6 +69,8 @@ test('cut-off tie requires sudden death and server rejects spectators', () => {
     assert.equal(x.db.executeCutoffLevel2(1).status, 'PENDING');
     x.manager.triggerSuddenDeath();
     assert.throws(() => x.manager.submitAnswer(c.id, 4, 'A'), /spectator/);
+    x.manager.setPipeReady(a.id, true);
+    x.manager.setPipeReady(b.id, true);
     x.manager.submitAnswer(a.id, 4, 'A');
     x.manager.submitAnswer(b.id, 4, 'B');
     x.manager.lockQuestion();
@@ -123,6 +132,7 @@ test('cut-offs require every scored question and voiding restores scores for rep
     x.manager.startLevel(1);
     assert.throws(() => x.manager.executeCutoff(2), /Complete every scored question/);
     x.manager.openQuestion(2);
+    x.manager.setPipeReady(p.id, true);
     x.manager.submitAnswer(p.id, 2, 'A');
     assert.ok(x.db.getPlayerById(p.id)!.level1_score >= 100);
     x.manager.lockQuestion();
@@ -179,6 +189,7 @@ test('pause freezes answer intake, resume restores it, and extension changes the
     const p = player(x.db, 'TIMER');
     x.manager.startLevel(1);
     x.manager.openQuestion(2);
+    x.manager.setPipeReady(p.id, true);
     const original = x.db.getGameState().deadline_at!;
     x.manager.pauseTimer();
     assert.equal(x.db.getGameState().game_status, 'PAUSED');
@@ -220,6 +231,8 @@ test('50-player and 10-player boundaries include no tied extra place', () => {
     assert.equal(x.db.getCutoffState(2)?.safeIds.length, 49);
     assert.equal(x.db.getCutoffState(2)?.pendingIds.length, 2);
     x.manager.triggerSuddenDeath();
+    x.manager.setPipeReady(players[49].id, true);
+    x.manager.setPipeReady(players[50].id, true);
     x.manager.submitAnswer(players[49].id, 4, 'A');
     x.manager.submitAnswer(players[50].id, 4, 'B');
     x.manager.lockQuestion();
@@ -232,6 +245,7 @@ test('50-player and 10-player boundaries include no tied extra place', () => {
     assert.equal(x.db.getCutoffState(3)?.safeIds.length, 9);
     assert.equal(x.db.getCutoffState(3)?.pendingIds.length, 41);
     x.manager.triggerSuddenDeath();
+    x.manager.setPipeReady(players[9].id, true);
     x.manager.submitAnswer(players[9].id, 5, 'A');
     x.manager.lockQuestion();
     assert.equal(x.db.getCutoffState(3)?.status, 'COMPLETE');

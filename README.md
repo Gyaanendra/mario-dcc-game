@@ -1,6 +1,6 @@
 # Mario Career Quest — event game
 
-A live arcade quiz show for Dean Career Cloud at Bennett University on **2 November 2026**. Students answer on phones, the operator controls rounds at `/host`, and the lecture hall watches `/projector`. The game is designed for about 150 individual participants on a single Node server with SQLite. It uses original pixel-style explorer art and optional synthesized sound.
+A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett University on **2 November 2026**. Students run and jump on phones at `/play`; a live question appears only after a player stands on a pipe. The operator controls rounds at `/host`, and the lecture hall watches `/projector`. The game is designed for about 150 individual participants on a single Node server with SQLite. The game world uses the supplied Bennett/DCC background artwork and mechanics from the [referenced platformer pull request](https://github.com/Gyaanendra/mario-dcc-game/pull/1).
 
 ## Event flow
 
@@ -15,7 +15,7 @@ A live arcade quiz show for Dean Career Cloud at Bennett University on **2 Novem
 | 2:15–2:55 | Final career case; up to two minutes per finalist |
 | 2:55–3:00 | Verify winners and reveal podium |
 
-Each correct quiz answer earns **100 coins plus up to 20 speed coins** measured by the server. Practice and sudden-death questions earn no coins. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
+Each correct quiz answer earns **100 coins plus up to 20 speed coins** measured by the server. Arcade collectibles are visual play rewards and do not affect event rankings. Practice and sudden-death questions earn no quiz coins. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
 
 ## Requirements and setup
 
@@ -42,7 +42,7 @@ These environment variables must be exported to the server process or configured
 ## Rehearsal and fallback
 
 1. Open `/projector` on the lecture hall display and `/host` on the operator laptop. Scan the QR using a venue Wi-Fi phone and a mobile-data phone. The QR targets `PUBLIC_JOIN_URL` or the current origin plus `/play`.
-2. Play the practice question. Verify that it awards zero coins, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
+2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls. The host can see how many eligible players are standing on pipes. Open the practice question, verify that it only appears at a pipe and awards zero quiz coins, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
 3. Run the full 15 + 20 question sequence, check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
 4. Prepare printed questions, a private answer key, manual score sheets, and the final case:
 
@@ -84,7 +84,7 @@ cd server
 HOST_PIN='a-separate-test-secret' TEST_HTTP_URL=http://localhost:3002 npm run test:load
 ```
 
-The script refuses a server without `TEST_MODE=1` or a fresh database. It asserts all 150 joins and acknowledgements, a short answer burst, duplicate rejection, session restoration, p95 answer acknowledgement within 1 second, and RSS under 500 MB. Run it on the actual VPS and record the result; a local pass does not establish VPS or venue-network performance. The full game must be rehearsed before 2 November.
+The script refuses a server without `TEST_MODE=1` or a fresh database. Simulated players signal pipe readiness before submitting. It asserts all 150 joins and acknowledgements, a short answer burst, duplicate rejection, session restoration, p95 answer acknowledgement within 1 second, and RSS under 500 MB. Run it on the actual VPS and record the result; a local pass does not establish VPS or venue-network performance. The full game must be rehearsed before 2 November.
 
 ## Developer checks
 

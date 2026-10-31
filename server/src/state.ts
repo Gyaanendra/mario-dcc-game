@@ -24,6 +24,7 @@ const publicQuestion = (question: Question, reveal: boolean) => ({
 
 export class GameManager {
   private playerSockets = new Map<string, WebSocket>();
+  private pipeReadyPlayers = new Set<string>();
   private hostSockets = new Set<WebSocket>();
   private projectorSockets = new Set<WebSocket>();
   private clock: NodeJS.Timeout;
@@ -54,14 +55,17 @@ export class GameManager {
     const old = this.playerSockets.get(id);
     if (old && old !== ws) old.close(4001, 'Session opened on another device');
     this.playerSockets.set(id, ws);
+    if (this.pipeReadyPlayers.delete(id)) this.broadcastPipeReadyCount();
     this.db.setPlayerConnection(id, true);
     this.broadcastCounts();
   }
   unregisterPlayerSocket(id: string, ws: WebSocket) {
     if (this.playerSockets.get(id) === ws) {
       this.playerSockets.delete(id);
+      this.pipeReadyPlayers.delete(id);
       this.db.setPlayerConnection(id, false);
       this.broadcastCounts();
+      this.broadcastPipeReadyCount();
     }
   }
   disconnectPlayer(id: string) { this.playerSockets.get(id)?.close(4002, 'Session moved to another phone'); }
@@ -73,6 +77,26 @@ export class GameManager {
     const counts = this.db.getPlayerCount();
     this.broadcastToHosts({ type: 'COUNTS_UPDATE', totalRegistered: counts.total, connectedPlayers: counts.connected });
     this.broadcastToProjectors({ type: 'COUNTS_UPDATE', totalRegistered: counts.total, connectedPlayers: counts.connected });
+  }
+  private broadcastPipeReadyCount() {
+    const payload = { type: 'PIPE_READY_COUNT', count: this.pipeReadyPlayers.size };
+    this.broadcastToHosts(payload);
+    this.broadcastToProjectors(payload);
+  }
+  setPipeReady(id: string, ready: boolean) {
+    const player = this.db.getPlayerById(id);
+    if (!player) throw new Error('Join before entering a pipe');
+    const level = this.db.getGameState().current_level;
+    const eligible = level < 2 || (level === 2 && !!player.is_qualified_level2) ||
+      (level === 3 && !!player.is_qualified_level3);
+    const wasReady = this.pipeReadyPlayers.has(id);
+    if (ready && eligible) this.pipeReadyPlayers.add(id);
+    else this.pipeReadyPlayers.delete(id);
+    if (wasReady !== this.pipeReadyPlayers.has(id)) {
+      this.broadcastPipeReadyCount();
+      const socket = this.playerSockets.get(id);
+      if (socket) this.send(socket, this.getPlayerSyncPayload(id));
+    }
   }
 
   private remainingMs(state: GameStateRecord) {
@@ -103,10 +127,11 @@ export class GameManager {
     const reveal = state.game_status === 'REVEAL';
     const cutoff = this.cutoffState(state);
     const isEligible = !!player && !!question && this.isEligible(player, question, cutoff?.pendingIds || []);
-    const canAnswer = isEligible && state.game_status === 'QUESTION_ACTIVE' && this.remainingMs(state) > 0 && !answer;
+    const isAtPipe = this.pipeReadyPlayers.has(id);
+    const canAnswer = isEligible && isAtPipe && state.game_status === 'QUESTION_ACTIVE' && this.remainingMs(state) > 0 && !answer;
     return { type: 'SYNC_STATE', role: 'PLAYER', gameState: this.wireState(state),
       player: privatePlayer(player, state.game_status === 'PODIUM_WINNERS'),
-      activeQuestion: isEligible || question?.category !== 'SUDDEN_DEATH' ? this.activeQuestion(state, reveal) : null,
+      activeQuestion: isEligible && isAtPipe ? this.activeQuestion(state, reveal) : null,
       canAnswer, isSpectator: !!question && !isEligible, tiePending: cutoff?.status === 'PENDING',
       myAnswer: answer ? { selected_option: answer.selected_option,
         is_correct: reveal ? answer.is_correct : null, coins_awarded: reveal ? answer.coins_awarded : null } : null };
@@ -121,7 +146,8 @@ export class GameManager {
       leaderboard: this.db.getLeaderboard(state.current_level || 1, 50).map(publicPlayer),
       finalists: this.db.getTop10Finalists().map(publicPlayer),
       podium: state.game_status === 'PODIUM_WINNERS' ? this.db.getFinalistPodium().map(({ student_id, ...rest }) => rest) : [],
-      counts: this.db.getPlayerCount(), publicJoinUrl: process.env.PUBLIC_JOIN_URL || null,
+      counts: this.db.getPlayerCount(), pipeReadyCount: this.pipeReadyPlayers.size,
+      publicJoinUrl: process.env.PUBLIC_JOIN_URL || null,
       judgeReadiness: { completed: readiness.completed, expected: readiness.expected,
         followUpRequired: readiness.ties.length > 0 } });
   }
@@ -133,7 +159,8 @@ export class GameManager {
       answerStats: activeQuestion ? this.db.getAnswerStats(activeQuestion.id) : null,
       leaderboard: this.db.getLeaderboard(state.current_level || 1, 150),
       finalists: this.db.getTop10Finalists(), podium: this.db.getFinalistPodium(),
-      counts: this.db.getPlayerCount(), judgeMatrix: this.db.getJudgeMatrix(), levelQuestions: [
+      counts: this.db.getPlayerCount(), pipeReadyCount: this.pipeReadyPlayers.size,
+      judgeMatrix: this.db.getJudgeMatrix(), levelQuestions: [
         ...(state.current_level <= 1 && this.db.getPracticeQuestion() ? [this.db.getPracticeQuestion()] : []),
         ...this.db.getQuestionsForLevel(state.current_level || 1)
       ], cutoff, judgeNames: this.db.getJudgeNames(), judgeReadiness: this.db.getResultReadiness() });
@@ -179,6 +206,7 @@ export class GameManager {
       throw new Error('This question is closed');
     const cutoff = this.cutoffState(state);
     if (!this.isEligible(player, question, cutoff?.pendingIds || [])) throw new Error('You are watching this round as a spectator');
+    if (!this.pipeReadyPlayers.has(id)) throw new Error('Stand on a pipe to unlock this question');
     const elapsedMs = Math.max(0, Date.now() - (state.question_start_time || Date.now()));
     const result = this.db.submitAnswer(id, question, option, elapsedMs);
     if (!result.alreadyAnswered) {
@@ -198,6 +226,7 @@ export class GameManager {
     if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the current question first');
     this.db.updateGameState({ current_level: level, game_status: 'LEVEL_INTRO', active_question_id: null,
       question_start_time: null, deadline_at: null, remaining_ms: 0, sudden_death_active: 0 });
+    this.pipeReadyPlayers.clear();
     this.broadcastSyncToAll();
   }
   openQuestion(questionId: number) {
@@ -300,6 +329,7 @@ export class GameManager {
     if (this.db.getCutoffState(3)?.status !== 'COMPLETE') throw new Error('Finish the top 10 cut-off first');
     this.db.updateGameState({ current_level: 3, game_status: 'BOWSER_STAGE', active_question_id: null,
       deadline_at: null, remaining_ms: 0, speaker_id: null, speaker_remaining_ms: 120000, speaker_running: 0 });
+    this.pipeReadyPlayers.clear();
     this.broadcastSyncToAll();
   }
   selectSpeaker(id: string) {
@@ -349,7 +379,7 @@ export class GameManager {
     this.db.updateGameState({ game_status: 'PODIUM_WINNERS', speaker_running: 0, speaker_deadline_at: null } as any);
     this.broadcastSyncToAll();
   }
-  resetGame() { this.db.resetGame(); this.broadcastSyncToAll(); }
+  resetGame() { this.db.resetGame(); this.pipeReadyPlayers.clear(); this.broadcastSyncToAll(); }
 }
 
 export const gameManager = new GameManager();
