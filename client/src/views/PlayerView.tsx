@@ -12,10 +12,10 @@ export const PlayerView: React.FC = () => {
   const [recoveryInput, setRecoveryInput] = useState('');
 
   if (socket.player) return <Suspense fallback={<div className="min-h-screen grid place-items-center bg-sky-800 text-white font-pixel">LOADING QUEST…</div>}><GameView key={socket.gameState.current_level >= 2 ? socket.gameState.current_level : 1} socket={socket} /></Suspense>;
-  if (socket.isReconnecting) return <main className="min-h-screen grid place-items-center bg-[#0d2039] text-white p-6 text-center"><div><h1 className="font-pixel text-yellow-300 mb-4">RESTORING YOUR QUEST</h1><p>Your player and coins are being restored…</p></div></main>;
+  if (socket.isReconnecting) return <main className="min-h-screen grid place-items-center bg-[#0d2039] text-white p-6 text-center"><div><h1 className="font-pixel text-yellow-300 mb-4">RESTORING YOUR QUEST</h1><p>Your player and points are being restored…</p></div></main>;
 
   return <main className="relative min-h-screen overflow-hidden bg-sky-700 text-white">
-    <div className="absolute inset-0 bg-[url('/images/dcc-platform-world.png')] bg-cover bg-center" aria-hidden="true" />
+    <div className="absolute inset-0 bg-[url('/images/dcc-platform-world-clean.png')] bg-cover bg-center" aria-hidden="true" />
     <div className="absolute inset-0 bg-gradient-to-b from-sky-950/40 via-sky-950/25 to-slate-950/80" aria-hidden="true" />
     <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-7 p-4 md:flex-row md:gap-12 md:p-8">
       <div className="w-full max-w-lg text-center md:text-left">

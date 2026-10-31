@@ -95,7 +95,7 @@ export const ProjectorView: React.FC = () => {
 
   return (
     <div className="w-screen h-screen bg-[#0E101D] text-white flex flex-col justify-between overflow-hidden relative select-none scanlines font-sans">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[url('/images/dcc-platform-world.png')] bg-cover bg-center opacity-40" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[url('/images/dcc-platform-world-clean.png')] bg-cover bg-center opacity-40" aria-hidden="true" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-slate-950/80" aria-hidden="true" />
       {/* =========================================================================
           TOP STAGE HEADER
@@ -120,7 +120,7 @@ export const ProjectorView: React.FC = () => {
           <span className="font-pixel text-xs text-yellow-300">
             {gameState.current_level === 0 && 'QUEST LOBBY'}
             {gameState.current_level === 1 && 'LEVEL 1: START YOUR QUEST'}
-            {gameState.current_level === 2 && 'LEVEL 2: QUESTION BLOCK'}
+            {gameState.current_level === 2 && 'LEVEL 2: PIPE RUN'}
             {gameState.current_level === 3 && "LEVEL 3: BOWSER'S BOSS BATTLE"}
           </span>
         </div>
@@ -145,7 +145,7 @@ export const ProjectorView: React.FC = () => {
       {/* =========================================================================
           RETRO 2D MARIO RUNNER CANVAS (60 FPS Side-scroller)
           ========================================================================= */}
-      <div className={`relative z-10 border-b-4 border-black bg-[url('/images/dcc-platform-world.png')] bg-cover bg-center ${['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'REVEAL', 'PAUSED'].includes(gameState.game_status) ? 'h-[90px]' : 'h-[160px]'}`} aria-hidden="true">
+      <div className={`relative z-10 border-b-4 border-black bg-[url('/images/dcc-platform-world-clean.png')] bg-cover bg-center ${['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'REVEAL', 'PAUSED'].includes(gameState.game_status) ? 'h-[90px]' : 'h-[160px]'}`} aria-hidden="true">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-950/45" />
       </div>
 
@@ -193,7 +193,7 @@ export const ProjectorView: React.FC = () => {
               <div className="mt-3 text-center">
                 <div className="font-pixel text-[10px] text-zinc-400">JOIN URL:</div>
                 <div className="font-mono text-lg font-bold text-yellow-300 mt-0.5 break-all">{joinUrl}</div>
-                <div className="text-sm text-slate-200 mt-2">Correct answer: 100 coins + up to 20 speed coins. Practice does not count.</div>
+                <div className="text-sm text-slate-200 mt-2">Correct answer: 100 points + up to 20 speed points. Practice does not count.</div>
               </div>
             </div>
           </div>
@@ -207,12 +207,12 @@ export const ProjectorView: React.FC = () => {
             </div>
             <h1 className="font-pixel text-3xl text-yellow-400 drop-shadow-md">
               {gameState.current_level === 1 && 'LEVEL 1 — START YOUR QUEST'}
-              {gameState.current_level === 2 && 'LEVEL 2 — QUESTION BLOCK'}
+              {gameState.current_level === 2 && 'LEVEL 2 — PIPE RUN'}
               {gameState.current_level === 3 && "LEVEL 3 — BOWSER'S BOSS CHALLENGE"}
             </h1>
             <p className="text-base text-zinc-300 font-sans leading-relaxed">
               {gameState.current_level === 1 &&
-                'Career and placement fundamentals. Speed and accuracy earn coins. Top 50 qualify for Level 2!'}
+                'Career and placement fundamentals. Speed and accuracy earn points. Top 50 qualify for Level 2!'}
               {gameState.current_level === 2 &&
                 'Myth-busting and recruitment red flags. Read every option carefully. Top 10 advance to the Final Boss!'}
               {gameState.current_level === 3 &&
@@ -338,7 +338,7 @@ export const ProjectorView: React.FC = () => {
                 LEVEL {gameState.current_level} LEADERBOARD
               </h2>
               <p className="text-xs font-mono text-zinc-400 mt-0.5">
-                {gameState.current_level === 1 && 'Top 50 Qualify for Level 2 (Question Block)'}
+                {gameState.current_level === 1 && 'Top 50 Qualify for Level 2 (Pipe Run)'}
                 {gameState.current_level === 2 && 'Top 10 Qualify for Bowser Boss Battle Finale'}
               </p>
               <p className="text-sm font-mono text-yellow-200 mt-2">{qualifiedPlayers.length ? `${qualifiedPlayers.length} qualified` : 'Scores pending cut-off'} · Page {visiblePage + 1}/{pageCount}</p>
@@ -350,7 +350,7 @@ export const ProjectorView: React.FC = () => {
                   <tr className="border-b-2 border-zinc-700 font-pixel text-xs text-yellow-400">
                     <th className="py-2 px-3">RANK</th>
                     <th className="py-2 px-3">PLAYER</th>
-                    <th className="py-2 px-3 text-right">ROUND COINS</th>
+                    <th className="py-2 px-3 text-right">ROUND POINTS</th>
                     <th className="py-2 px-3 text-center">STATUS</th>
                   </tr>
                 </thead>

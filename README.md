@@ -15,7 +15,7 @@ A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett Universi
 | 2:15–2:55 | Final career case; up to two minutes per finalist |
 | 2:55–3:00 | Verify winners and reveal podium |
 
-Each correct quiz answer earns **100 coins plus up to 20 speed coins** measured by the server. Arcade collectibles are visual play rewards and do not affect event rankings. Practice and sudden-death questions earn no quiz coins. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
+The world has no collectible coins or question-mark blocks; pipe contact opens questions. Each correct quiz answer earns **100 points plus up to 20 speed points** measured by the server. Practice and sudden-death questions earn no quiz points. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
 
 ## Requirements and setup
 
@@ -42,7 +42,7 @@ These environment variables must be exported to the server process or configured
 ## Rehearsal and fallback
 
 1. Open `/projector` on the lecture hall display and `/host` on the operator laptop. Scan the QR using a venue Wi-Fi phone and a mobile-data phone. The QR targets `PUBLIC_JOIN_URL` or the current origin plus `/play`.
-2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls in portrait and landscape. In the lobby, the first ten seeded questions open one per pipe with immediate feedback and saved practice progress. The host can see how many eligible players are standing on pipes. Open the live practice question, verify that it only appears at a pipe and awards zero quiz coins, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
+2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls in portrait and landscape. In the lobby, the first ten seeded questions open one per pipe with immediate feedback and saved practice progress. The host can see how many eligible players are standing on pipes. Open the live practice question, verify that it only appears at a pipe and awards zero quiz points, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
 3. Run the full 15 + 20 question sequence, check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
 4. Prepare printed questions, a private answer key, manual score sheets, and the final case:
 
@@ -51,7 +51,7 @@ export FALLBACK_DIR=/secure/location/for/event-printouts
 npm run export:fallback
 ```
 
-Keep the answer key with staff. If the network fails, the host pauses, projects the same questions, and records paper answers by roll number. Do not mix online and paper scoring without marking which method each participant used. If the server restarts during a live question, it locks that question. The host can verify and reveal it, or **void it and replay**; voiding removes its awarded coins. A running finalist clock pauses on restart.
+Keep the answer key with staff. If the network fails, the host pauses, projects the same questions, and records paper answers by roll number. Do not mix online and paper scoring without marking which method each participant used. If the server restarts during a live question, it locks that question. The host can verify and reveal it, or **void it and replay**; voiding removes its awarded points. A running finalist clock pauses on restart.
 
 ### Backup and restore
 

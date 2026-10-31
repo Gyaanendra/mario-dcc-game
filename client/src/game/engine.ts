@@ -65,7 +65,7 @@ export class GameEngine {
     this.ctx = canvas.getContext('2d')!;
     this.ctx.imageSmoothingEnabled = false;
     const background = new Image();
-    background.src = '/images/dcc-platform-world.png';
+    background.src = '/images/dcc-platform-world-clean.png';
     background.onload = () => { this.backgroundImage = background; };
 
     this.boundKeyDown = this.onKeyDown.bind(this);
@@ -1069,7 +1069,7 @@ export class GameEngine {
     if (this.backgroundImage) {
       const image = this.backgroundImage;
       const backgroundHeight = 13 * TILE - cam.y;
-      const sourceHeight = 335;
+      const sourceHeight = image.height * (335 / 576);
       const sourceWidth = Math.min(image.width, sourceHeight * cw / Math.max(1, backgroundHeight));
       const progress = cam.x / Math.max(1, this.level.width - cam.viewWidth);
       const sourceX = Math.max(0, Math.min(1, progress)) * (image.width - sourceWidth);

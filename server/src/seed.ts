@@ -223,7 +223,7 @@ export function seedQuestions() {
     },
 
     // =========================================================================
-    // LEVEL 2: QUESTION BLOCK — MYTH-BUSTING & RED FLAGS (20 Questions)
+    // LEVEL 2: PIPE RUN — MYTH-BUSTING & RED FLAGS (20 Questions)
     // Categories: 'MYTH OR FACT?', 'CHOOSE WISELY', 'RED FLAG'
     // =========================================================================
     {
@@ -545,7 +545,7 @@ export function seedQuestions() {
     prompt: 'Practice: Which button locks in your answer?',
     option_a: 'Tap one answer option', option_b: 'Refresh the page',
     option_c: 'Close your browser', option_d: 'Ask a friend to answer',
-    correct_option: 'A', explanation: 'Tap one option. Practice earns no coins.',
+    correct_option: 'A', explanation: 'Tap one option. Practice earns no points.',
     points: 0, time_limit_sec: 20, sort_order: -1
   } as any);
   questions.push(

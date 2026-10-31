@@ -35,7 +35,7 @@ export const HostView: React.FC = () => {
     ? cutoff.pendingIds.length : gameState.current_level === 2 ? Math.min(50, counts.total) : counts.total;
   const questionRunning = gameState.game_status === 'QUESTION_ACTIVE' || gameState.game_status === 'PAUSED';
   const exportResults = () => {
-    const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 coins', 'Level 2 coins', 'Final rubric /20', 'Qualified for Level 2', 'Finalist'],
+    const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 points', 'Level 2 points', 'Final rubric /20', 'Qualified for Level 2', 'Finalist'],
       ...leaderboard.map((p, index) => [index + 1, p.student_id, p.name, p.level1_score, p.level2_score,
         p.level3_score, p.is_qualified_level2 ? 'Yes' : 'No', p.is_qualified_level3 ? 'Yes' : 'No'])];
     const blob = new Blob([rows.map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -79,7 +79,7 @@ export const HostView: React.FC = () => {
         <div className="space-y-5">
           <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="round-controls">
             <h2 id="round-controls" className="font-pixel text-sm text-yellow-300">ROUND CONTROL</h2>
-            <p className="text-sm text-slate-200">Scoring: 100 coins per correct answer plus up to 20 speed coins. Level 2 starts fresh. Finalists are judged separately.</p>
+            <p className="text-sm text-slate-200">Scoring: 100 points per correct answer plus up to 20 speed points. Level 2 starts fresh. Finalists are judged separately.</p>
             <p className="text-sm text-sky-200">Ask players to stand on a pipe before opening a question. The header shows how many are ready.</p>
             <div className="grid sm:grid-cols-3 gap-3">
               <button onClick={() => startLevel(1)} disabled={gameState.game_status !== 'LOBBY'} className="event-button bg-red-600 disabled:opacity-40">Start Level 1</button>
@@ -109,7 +109,7 @@ export const HostView: React.FC = () => {
               <button onClick={() => send({ type: 'HOST_LOCK_QUESTION' })} disabled={!questionRunning} className="event-button bg-amber-700 disabled:opacity-40">Lock</button>
               <button onClick={() => send({ type: 'HOST_REVEAL_ANSWER' })} disabled={gameState.game_status !== 'QUESTION_LOCKED'} className="event-button bg-blue-700 disabled:opacity-40">Reveal</button>
             </div>
-            {['QUESTION_LOCKED', 'REVEAL'].includes(gameState.game_status) && !gameState.sudden_death_active && <button onClick={() => { if (window.confirm('Void this question, remove its awarded coins, and make it available to replay?')) send({ type: 'HOST_VOID_QUESTION' }); }} className="text-amber-300 underline text-sm">Void question and allow replay</button>}
+            {['QUESTION_LOCKED', 'REVEAL'].includes(gameState.game_status) && !gameState.sudden_death_active && <button onClick={() => { if (window.confirm('Void this question, remove its awarded points, and make it available to replay?')) send({ type: 'HOST_VOID_QUESTION' }); }} className="text-amber-300 underline text-sm">Void question and allow replay</button>}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-t border-slate-600 pt-4">
               <button onClick={() => send({ type: 'HOST_SHOW_LEADERBOARD' })} disabled={questionRunning || gameState.current_level > 2} className="event-button bg-slate-700 disabled:opacity-40"><Trophy size={17} /> Leaderboard</button>
               <button onClick={() => { if (window.confirm('Review and select the top 50 by Level 1 score?')) send({ type: 'HOST_CUTOFF_L2' }); }} disabled={gameState.current_level !== 1 || questionRunning} className="event-button bg-purple-700 disabled:opacity-40">Top 50 cut-off</button>
