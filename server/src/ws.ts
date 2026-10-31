@@ -30,6 +30,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         const { session_token_hash, ...safePlayer } = player;
         send({ type: 'JOIN_SUCCESS', sessionToken, player: safePlayer });
         send(gameManager.getPlayerSyncPayload(player.id));
+        send(gameManager.getPipeQuestPayload(player.id));
         return;
       }
       if (type === 'CLIENT_RECONNECT') {
@@ -40,6 +41,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         boundPlayerId = player.id;
         gameManager.registerPlayerSocket(player.id, socket);
         send(gameManager.getPlayerSyncPayload(player.id));
+        send(gameManager.getPipeQuestPayload(player.id));
         return;
       }
       if (type === 'CLIENT_SUBMIT_ANSWER') {
@@ -51,7 +53,15 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       }
       if (type === 'CLIENT_PIPE_READY') {
         if (!boundPlayerId) throw new Error('Join before entering a pipe');
-        gameManager.setPipeReady(boundPlayerId, data.ready === true);
+        gameManager.setPipeReady(boundPlayerId, data.ready === true, Number(data.pipeIndex));
+        return;
+      }
+      if (type === 'CLIENT_PIPE_ANSWER') {
+        if (!boundPlayerId) throw new Error('Join before answering');
+        const result = gameManager.submitPipeQuestAnswer(boundPlayerId, Number(data.pipeIndex),
+          Number(data.questionId), String(data.selectedOption || ''));
+        send(result);
+        send(gameManager.getPipeQuestPayload(boundPlayerId));
         return;
       }
       if (type === 'CLIENT_HEARTBEAT') { send({ type: 'HEARTBEAT_ACK' }); return; }

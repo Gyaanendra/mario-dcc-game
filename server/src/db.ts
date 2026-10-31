@@ -98,6 +98,18 @@ export class DatabaseManager {
         FOREIGN KEY(question_id) REFERENCES questions(id)
       );
 
+      CREATE TABLE IF NOT EXISTS pipe_quest_answers (
+        player_id TEXT NOT NULL,
+        pipe_index INTEGER NOT NULL,
+        question_id INTEGER NOT NULL,
+        selected_option TEXT NOT NULL,
+        is_correct INTEGER NOT NULL,
+        answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(player_id, pipe_index),
+        FOREIGN KEY(player_id) REFERENCES players(id),
+        FOREIGN KEY(question_id) REFERENCES questions(id)
+      );
+
       CREATE TABLE IF NOT EXISTS judge_scores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         finalist_id TEXT NOT NULL,
@@ -214,6 +226,7 @@ export class DatabaseManager {
         is_qualified_level3 = 0;
 
       DELETE FROM player_answers;
+      DELETE FROM pipe_quest_answers;
       DELETE FROM judge_scores;
       DELETE FROM cutoff_state;
       DELETE FROM final_tiebreak_scores;
@@ -305,6 +318,28 @@ export class DatabaseManager {
 
   getPracticeQuestion(): Question | undefined {
     return this.db.prepare('SELECT * FROM questions WHERE is_practice = 1 LIMIT 1').get() as unknown as Question | undefined;
+  }
+
+  getPipeQuestQuestions(): Question[] {
+    return this.getQuestionsForLevel(1).slice(0, 10);
+  }
+
+  getPipeQuestProgress(playerId: string): { completedPipes: number; correctCount: number } {
+    const row = this.db.prepare(`SELECT COUNT(*) AS completedPipes,
+      COALESCE(SUM(is_correct), 0) AS correctCount FROM pipe_quest_answers WHERE player_id = ?`)
+      .get(playerId) as { completedPipes: number; correctCount: number };
+    return row;
+  }
+
+  submitPipeQuestAnswer(playerId: string, pipeIndex: number, question: Question, selectedOption: string) {
+    const option = selectedOption.toUpperCase();
+    if (!['A', 'B', 'C', 'D'].includes(option) || !(question as any)[`option_${option.toLowerCase()}`])
+      throw new Error('Choose one of the available answer options');
+    const isCorrect = option === question.correct_option.toUpperCase();
+    this.db.prepare(`INSERT INTO pipe_quest_answers
+      (player_id, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?)`)
+      .run(playerId, pipeIndex, question.id, option, isCorrect ? 1 : 0);
+    return { selectedOption: option, isCorrect };
   }
 
   getSuddenDeathQuestions(level?: number): Question[] {

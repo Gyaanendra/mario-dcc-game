@@ -21,8 +21,8 @@ export const PlayerView: React.FC = () => {
       <div className="w-full max-w-lg text-center md:text-left">
         <p className="inline-block rounded-full border border-white/40 bg-sky-950/75 px-4 py-2 text-xs font-bold tracking-widest">BENNETT UNIVERSITY · DEAN CAREER CLOUD</p>
         <h1 className="mt-6 font-pixel text-3xl leading-normal text-yellow-300 drop-shadow-[4px_5px_0_#17345c] md:text-5xl">MARIO<br />CAREER QUEST</h1>
-        <p className="mt-5 text-lg font-semibold text-white drop-shadow-md">Run, jump, land on a pipe, and answer the live question to earn coins.</p>
-        <p className="mt-3 text-sm text-white/90">Move with ← → or A/D. Jump with Space or ↑. Touch controls appear on phones. The host opens each round.</p>
+        <p className="mt-5 text-lg font-semibold text-white drop-shadow-md">Run, jump, land on a pipe, answer its question, and keep moving.</p>
+        <p className="mt-3 text-sm text-white/90">The pipe run starts immediately with sample career questions. Live event rounds open when the host is ready. Phone controls work in portrait or landscape.</p>
       </div>
       <div className="w-full max-w-md rounded-2xl border-4 border-black bg-[#15243b]/95 p-5 shadow-[8px_8px_0_#0d1727] sm:p-7">
         <h2 className="font-pixel text-sm text-yellow-300">ENTER THE QUEST</h2>

@@ -1068,11 +1068,13 @@ export class GameEngine {
     // foreground remain real collision objects drawn below it.
     if (this.backgroundImage) {
       const image = this.backgroundImage;
-      const sourceWidth = image.width * 0.88;
+      const backgroundHeight = 13 * TILE - cam.y;
+      const sourceHeight = 335;
+      const sourceWidth = Math.min(image.width, sourceHeight * cw / Math.max(1, backgroundHeight));
       const progress = cam.x / Math.max(1, this.level.width - cam.viewWidth);
       const sourceX = Math.max(0, Math.min(1, progress)) * (image.width - sourceWidth);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(image, sourceX, 0, sourceWidth, 335, 0, 0, cw, 13 * TILE - cam.y);
+      ctx.drawImage(image, sourceX, 0, sourceWidth, sourceHeight, 0, 0, cw, backgroundHeight);
       ctx.imageSmoothingEnabled = false;
     } else {
       drawSky(ctx, cw, ch);

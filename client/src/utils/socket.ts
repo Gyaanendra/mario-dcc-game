@@ -26,6 +26,21 @@ export interface QuestionData {
   sort_order?: number;
   correct_option?: string | null; explanation?: string | null;
 }
+export interface PipeQuestState {
+  totalPipes: number;
+  completedPipes: number;
+  correctCount: number;
+  nextPipeIndex: number;
+  question: (QuestionData & { pipeIndex: number }) | null;
+}
+export interface PipeQuestResult {
+  pipeIndex: number;
+  question: QuestionData & { pipeIndex: number };
+  selectedOption: string;
+  isCorrect: boolean;
+  completedPipes: number;
+  correctCount: number;
+}
 export interface CutoffData {
   level: number; targetCount: number; safeIds: string[]; pendingIds: string[];
   nextQuestionIndex: number; status: string;
@@ -59,6 +74,9 @@ export interface SocketHookState {
   finalists: PlayerData[];
   counts: { total: number; connected: number };
   pipeReadyCount: number;
+  pipeQuest: PipeQuestState;
+  pipeQuestResult: PipeQuestResult | null;
+  pipeQuestPending: boolean;
   cutoff: CutoffData | null;
   judgeNames: string[];
   judgeReadiness: JudgeReadiness | null;
@@ -72,6 +90,8 @@ export interface SocketHookState {
   send: (msg: any) => boolean;
   joinAsPlayer: (studentId: string, name: string, avatarId: string) => void;
   submitAnswer: (selectedOption: string) => void;
+  submitPipeQuestAnswer: (pipeIndex: number, questionId: number, selectedOption: string) => void;
+  clearPipeQuestResult: () => void;
   authenticateHost: (pin: string) => void;
   reconnectWithToken: (token: string) => void;
   clearError: () => void;
@@ -102,6 +122,10 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [finalists, setFinalists] = useState<PlayerData[]>([]);
   const [counts, setCounts] = useState({ total: 0, connected: 0 });
   const [pipeReadyCount, setPipeReadyCount] = useState(0);
+  const [pipeQuest, setPipeQuest] = useState<PipeQuestState>({ totalPipes: 0, completedPipes: 0,
+    correctCount: 0, nextPipeIndex: 0, question: null });
+  const [pipeQuestResult, setPipeQuestResult] = useState<PipeQuestResult | null>(null);
+  const [pipeQuestPending, setPipeQuestPending] = useState(false);
   const [cutoff, setCutoff] = useState<CutoffData | null>(null);
   const [judgeNames, setJudgeNames] = useState<string[]>([]);
   const [judgeReadiness, setJudgeReadiness] = useState<JudgeReadiness | null>(null);
@@ -189,15 +213,21 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
           case 'SPEAKER_TICK': setSpeakerRemainingMs(data.remainingMs); break;
           case 'COUNTS_UPDATE': setCounts({ total: data.totalRegistered, connected: data.connectedPlayers }); break;
           case 'PIPE_READY_COUNT': setPipeReadyCount(data.count); break;
+          case 'PIPE_QUEST_STATE': setPipeQuest({ totalPipes: data.totalPipes,
+            completedPipes: data.completedPipes, correctCount: data.correctCount,
+            nextPipeIndex: data.nextPipeIndex, question: data.question }); break;
+          case 'PIPE_QUEST_RESULT': setPipeQuestResult(data); setPipeQuestPending(false); break;
           case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
           case 'RECOVERY_TOKEN': setRecoveryToken({ studentId: data.studentId, sessionToken: data.sessionToken }); break;
-          case 'ERROR_MSG': setAnswerPending(false); setLastError(data.message); break;
+          case 'ERROR_MSG': setAnswerPending(false); setPipeQuestPending(false); setLastError(data.message); break;
         }
       } catch (error) { console.error('[WS message]', error); }
     };
     ws.onclose = () => {
       setIsConnected(false);
       setIsAuthenticated(false);
+      setAnswerPending(false);
+      setPipeQuestPending(false);
       if (viewRole === 'PLAYER' && localStorage.getItem('mcq_session_token')) setIsReconnecting(true);
       if (shouldReconnect.current) retryRef.current = setTimeout(connectSocket, 1500);
     };
@@ -230,6 +260,11 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
     if (!activeQuestion || !canAnswer || answerPending || myAnswer) return;
     if (send({ type: 'CLIENT_SUBMIT_ANSWER', questionId: activeQuestion.id, selectedOption })) setAnswerPending(true);
   }, [send, activeQuestion, canAnswer, answerPending, myAnswer]);
+  const submitPipeQuestAnswer = useCallback((pipeIndex: number, questionId: number, selectedOption: string) => {
+    if (pipeQuestPending || pipeQuestResult) return;
+    if (send({ type: 'CLIENT_PIPE_ANSWER', pipeIndex, questionId, selectedOption })) setPipeQuestPending(true);
+  }, [send, pipeQuestPending, pipeQuestResult]);
+  const clearPipeQuestResult = useCallback(() => setPipeQuestResult(null), []);
   const authenticateHost = useCallback((pin: string) => {
     if (send({ type: 'HOST_AUTH', pin })) sessionStorage.setItem('mcq_host_pin', pin);
   }, [send]);
@@ -241,7 +276,9 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const clearError = useCallback(() => setLastError(null), []);
 
   return { isConnected, isAuthenticated, isReconnecting, answerPending, gameState, player, activeQuestion,
-    myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, pipeReadyCount, cutoff, judgeNames,
+    myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, pipeReadyCount,
+    pipeQuest, pipeQuestResult, pipeQuestPending, cutoff, judgeNames,
     judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, recoveryToken, lastError, remainingSeconds, speakerRemainingMs,
-    send, joinAsPlayer, submitAnswer, authenticateHost, reconnectWithToken, clearError };
+    send, joinAsPlayer, submitAnswer, submitPipeQuestAnswer, clearPipeQuestResult,
+    authenticateHost, reconnectWithToken, clearError };
 }

@@ -25,6 +25,7 @@ const publicQuestion = (question: Question, reveal: boolean) => ({
 export class GameManager {
   private playerSockets = new Map<string, WebSocket>();
   private pipeReadyPlayers = new Set<string>();
+  private pipeIndices = new Map<string, number>();
   private hostSockets = new Set<WebSocket>();
   private projectorSockets = new Set<WebSocket>();
   private clock: NodeJS.Timeout;
@@ -56,6 +57,7 @@ export class GameManager {
     if (old && old !== ws) old.close(4001, 'Session opened on another device');
     this.playerSockets.set(id, ws);
     if (this.pipeReadyPlayers.delete(id)) this.broadcastPipeReadyCount();
+    this.pipeIndices.delete(id);
     this.db.setPlayerConnection(id, true);
     this.broadcastCounts();
   }
@@ -63,6 +65,7 @@ export class GameManager {
     if (this.playerSockets.get(id) === ws) {
       this.playerSockets.delete(id);
       this.pipeReadyPlayers.delete(id);
+      this.pipeIndices.delete(id);
       this.db.setPlayerConnection(id, false);
       this.broadcastCounts();
       this.broadcastPipeReadyCount();
@@ -83,7 +86,7 @@ export class GameManager {
     this.broadcastToHosts(payload);
     this.broadcastToProjectors(payload);
   }
-  setPipeReady(id: string, ready: boolean) {
+  setPipeReady(id: string, ready: boolean, pipeIndex?: number) {
     const player = this.db.getPlayerById(id);
     if (!player) throw new Error('Join before entering a pipe');
     const level = this.db.getGameState().current_level;
@@ -92,11 +95,40 @@ export class GameManager {
     const wasReady = this.pipeReadyPlayers.has(id);
     if (ready && eligible) this.pipeReadyPlayers.add(id);
     else this.pipeReadyPlayers.delete(id);
+    if (ready && eligible && Number.isInteger(pipeIndex) && pipeIndex! >= 0 && pipeIndex! < 10)
+      this.pipeIndices.set(id, pipeIndex!);
+    else this.pipeIndices.delete(id);
     if (wasReady !== this.pipeReadyPlayers.has(id)) {
       this.broadcastPipeReadyCount();
       const socket = this.playerSockets.get(id);
       if (socket) this.send(socket, this.getPlayerSyncPayload(id));
     }
+    const socket = this.playerSockets.get(id);
+    if (socket) this.send(socket, this.getPipeQuestPayload(id));
+  }
+
+  getPipeQuestPayload(id: string) {
+    const questions = this.db.getPipeQuestQuestions();
+    const progress = this.db.getPipeQuestProgress(id);
+    const pipeIndex = this.pipeIndices.get(id);
+    const question = this.db.getGameState().game_status === 'LOBBY' && pipeIndex !== undefined &&
+      pipeIndex === progress.completedPipes ? questions[pipeIndex] : undefined;
+    return { type: 'PIPE_QUEST_STATE', totalPipes: questions.length,
+      ...progress, nextPipeIndex: Math.min(progress.completedPipes, questions.length),
+      question: question ? { ...publicQuestion(question, false), pipeIndex } : null };
+  }
+
+  submitPipeQuestAnswer(id: string, pipeIndex: number, questionId: number, option: string) {
+    if (this.db.getGameState().game_status !== 'LOBBY') throw new Error('The pipe run is closed while the live event is playing');
+    const questions = this.db.getPipeQuestQuestions();
+    const progress = this.db.getPipeQuestProgress(id);
+    const question = questions[pipeIndex];
+    if (!question || pipeIndex !== progress.completedPipes || question.id !== questionId ||
+      this.pipeIndices.get(id) !== pipeIndex || !this.pipeReadyPlayers.has(id))
+      throw new Error('Reach the next pipe before answering');
+    const result = this.db.submitPipeQuestAnswer(id, pipeIndex, question, option);
+    return { type: 'PIPE_QUEST_RESULT', pipeIndex, question: { ...publicQuestion(question, true), pipeIndex },
+      ...result, ...this.db.getPipeQuestProgress(id) };
   }
 
   private remainingMs(state: GameStateRecord) {
@@ -227,6 +259,7 @@ export class GameManager {
     this.db.updateGameState({ current_level: level, game_status: 'LEVEL_INTRO', active_question_id: null,
       question_start_time: null, deadline_at: null, remaining_ms: 0, sudden_death_active: 0 });
     this.pipeReadyPlayers.clear();
+    this.pipeIndices.clear();
     this.broadcastSyncToAll();
   }
   openQuestion(questionId: number) {
@@ -330,6 +363,7 @@ export class GameManager {
     this.db.updateGameState({ current_level: 3, game_status: 'BOWSER_STAGE', active_question_id: null,
       deadline_at: null, remaining_ms: 0, speaker_id: null, speaker_remaining_ms: 120000, speaker_running: 0 });
     this.pipeReadyPlayers.clear();
+    this.pipeIndices.clear();
     this.broadcastSyncToAll();
   }
   selectSpeaker(id: string) {
@@ -379,7 +413,8 @@ export class GameManager {
     this.db.updateGameState({ game_status: 'PODIUM_WINNERS', speaker_running: 0, speaker_deadline_at: null } as any);
     this.broadcastSyncToAll();
   }
-  resetGame() { this.db.resetGame(); this.pipeReadyPlayers.clear(); this.broadcastSyncToAll(); }
+  resetGame() { this.db.resetGame(); this.pipeReadyPlayers.clear(); this.pipeIndices.clear(); this.broadcastSyncToAll();
+    for (const [id, ws] of this.playerSockets) this.send(ws, this.getPipeQuestPayload(id)); }
 }
 
 export const gameManager = new GameManager();

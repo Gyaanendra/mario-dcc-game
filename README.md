@@ -1,6 +1,6 @@
 # Mario Career Quest — event game
 
-A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett University on **2 November 2026**. Students run and jump on phones at `/play`; a live question appears only after a player stands on a pipe. The operator controls rounds at `/host`, and the lecture hall watches `/projector`. The game is designed for about 150 individual participants on a single Node server with SQLite. The game world uses the supplied Bennett/DCC background artwork and mechanics from the [referenced platformer pull request](https://github.com/Gyaanendra/mario-dcc-game/pull/1).
+A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett University on **2 November 2026**. Students run and jump on phones at `/play`; a question appears only after a player stands on a pipe. In the lobby, a self-paced pipe run uses the first ten seeded sample career questions: answer one, see immediate feedback, and continue to the next pipe. This practice progress is saved separately and never changes live-event scores. The operator controls scored rounds at `/host`, and the lecture hall watches `/projector`. The game is designed for about 150 individual participants on a single Node server with SQLite. The game world uses the supplied Bennett/DCC background artwork and mechanics from the [referenced platformer pull request](https://github.com/Gyaanendra/mario-dcc-game/pull/1).
 
 ## Event flow
 
@@ -37,12 +37,12 @@ npm start
 
 These environment variables must be exported to the server process or configured in its service manager. `.env.example` is a reference and is **not automatically loaded**. The server serves the built client and `/ws` on one port (default 3001). Routes are `/play` (also `/` and `/join`), `/projector`, and `/host`. The host PIN is entered in the host view. `/api/questions` requires `Authorization: Bearer <HOST_PIN>`; public leaderboards exclude roll numbers and session credentials.
 
-`DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with played questions or answers. Review all question wording and answer keys with the DCC content team before the event.
+`DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with live or pipe-run answers. Review all question wording and answer keys with the DCC content team before the event.
 
 ## Rehearsal and fallback
 
 1. Open `/projector` on the lecture hall display and `/host` on the operator laptop. Scan the QR using a venue Wi-Fi phone and a mobile-data phone. The QR targets `PUBLIC_JOIN_URL` or the current origin plus `/play`.
-2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls. The host can see how many eligible players are standing on pipes. Open the practice question, verify that it only appears at a pipe and awards zero quiz coins, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
+2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls in portrait and landscape. In the lobby, the first ten seeded questions open one per pipe with immediate feedback and saved practice progress. The host can see how many eligible players are standing on pipes. Open the live practice question, verify that it only appears at a pipe and awards zero quiz coins, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
 3. Run the full 15 + 20 question sequence, check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
 4. Prepare printed questions, a private answer key, manual score sheets, and the final case:
 

@@ -104,6 +104,8 @@ export type ClientMessageType =
   | 'CLIENT_JOIN'
   | 'CLIENT_RECONNECT'
   | 'CLIENT_SUBMIT_ANSWER'
+  | 'CLIENT_PIPE_READY'
+  | 'CLIENT_PIPE_ANSWER'
   | 'CLIENT_HEARTBEAT';
 
 export type HostMessageType =
@@ -144,5 +146,8 @@ export type ServerBroadcastType =
   | 'CUTOFF_ANNOUNCED'
   | 'BOWSER_UPDATE'
   | 'PODIUM_REVEAL'
+  | 'PIPE_READY_COUNT'
+  | 'PIPE_QUEST_STATE'
+  | 'PIPE_QUEST_RESULT'
   | 'ERROR_MSG';
 

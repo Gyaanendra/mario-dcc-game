@@ -22,6 +22,31 @@ function fixture() {
 }
 const player = (db: DatabaseManager, suffix: string) => db.createPlayer(`ROLL${suffix}`, `Player ${suffix}`, 'mario').player;
 
+test('lobby pipe quest uses seeded questions, reveals immediately, and leaves event coins untouched', () => {
+  const x = fixture();
+  try {
+    x.raw.prepare(`INSERT INTO questions (level,category,prompt,option_a,option_b,correct_option,points,time_limit_sec,sort_order,is_practice)
+      VALUES (1,'CAREER_BASICS','Second pipe','Yes','No','B',100,25,2,0)`).run();
+    const p = player(x.db, 'PIPE');
+    assert.equal(x.manager.getPipeQuestPayload(p.id).question, null);
+    x.manager.setPipeReady(p.id, true, 0);
+    const unlocked = x.manager.getPipeQuestPayload(p.id);
+    assert.equal(unlocked.question?.prompt, 'Career basics');
+    assert.equal(unlocked.question?.correct_option, null);
+    assert.throws(() => x.manager.submitPipeQuestAnswer(p.id, 1, 2, 'A'), /next pipe/);
+    const result = x.manager.submitPipeQuestAnswer(p.id, 0, 2, 'B');
+    assert.equal(result.isCorrect, false);
+    assert.equal(result.question.correct_option, 'A');
+    assert.equal(x.manager.getPipeQuestPayload(p.id).nextPipeIndex, 1);
+    assert.equal(x.manager.getPipeQuestPayload(p.id).question, null);
+    assert.equal(x.db.getPlayerById(p.id)?.level1_score, 0);
+    assert.throws(() => x.manager.submitPipeQuestAnswer(p.id, 0, 2, 'A'), /next pipe/);
+    x.manager.setPipeReady(p.id, false);
+    x.manager.setPipeReady(p.id, true, 1);
+    assert.equal(x.manager.getPipeQuestPayload(p.id).question?.prompt, 'Second pipe');
+  } finally { x.cleanup(); }
+});
+
 test('practice is unscored, answers lock once, and reveal hides key until lock', () => {
   const x = fixture();
   try {

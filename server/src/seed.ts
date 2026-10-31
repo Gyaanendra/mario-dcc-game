@@ -3,8 +3,9 @@ import { dbManager } from './db.js';
 export function seedQuestions() {
   const db = (dbManager as any).db;
   const answerCount = db.prepare('SELECT COUNT(*) AS count FROM player_answers').get().count;
+  const pipeAnswerCount = db.prepare('SELECT COUNT(*) AS count FROM pipe_quest_answers').get().count;
   const playedCount = db.prepare('SELECT COUNT(*) AS count FROM opened_questions').get().count;
-  if (answerCount > 0 || playedCount > 0) throw new Error('Refusing to reseed: this database contains played questions or answers. Use a fresh DATA_DIR for a new event.');
+  if (answerCount > 0 || pipeAnswerCount > 0 || playedCount > 0) throw new Error('Refusing to reseed: this database contains played questions or answers. Use a fresh DATA_DIR for a new event.');
 
   const questions = [
     // =========================================================================
