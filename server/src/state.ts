@@ -221,6 +221,9 @@ export class GameManager {
     const finalists = dbManager.getTop10Finalists();
     const podium = dbManager.getFinalistPodium();
 
+    const pillarAnswers = dbManager.getAllPillarAnswers();
+    const allPlayers = dbManager.getAllPlayersForHost();
+
     ws.send(JSON.stringify({
       type: 'SYNC_STATE',
       role: 'HOST',
@@ -235,7 +238,9 @@ export class GameManager {
       finalists,
       podium,
       counts,
-      levelQuestions: currentQuestions
+      levelQuestions: currentQuestions,
+      pillarAnswers,
+      players: allPlayers
     }));
   }
 

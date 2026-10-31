@@ -39,6 +39,33 @@ export interface QuestionData {
   explanation?: string | null;
 }
 
+export interface PillarAnswerRecord {
+  id: number;
+  player_id: string;
+  player_name: string;
+  student_id: string;
+  pillar_id: number;
+  question_id: number;
+  selected_option: string;
+  is_correct: number;
+  submitted_at: string;
+}
+
+export interface PlayerRecord {
+  id: string;
+  student_id: string;
+  name: string;
+  avatar_id: string;
+  is_connected: number;
+  level1_score: number;
+  level2_score: number;
+  level3_score: number;
+  is_qualified_level2: number;
+  is_qualified_level3: number;
+  created_at: string;
+  last_ping_at: string;
+}
+
 export interface SocketHookState {
   isConnected: boolean;
   role: 'PLAYER' | 'PROJECTOR' | 'HOST' | null;
@@ -53,9 +80,12 @@ export interface SocketHookState {
   counts: { total: number; connected: number };
   lastError: string | null;
   remainingSeconds: number;
+  pillarAnswers: PillarAnswerRecord[];
+  hostPlayers: PlayerRecord[];
   send: (msg: any) => void;
   joinAsPlayer: (studentId: string, name: string, avatarId: string) => void;
   submitAnswer: (selectedOption: string) => void;
+  submitPillarAnswer: (pillarId: number, questionId: number, selectedOption: string, isCorrect: boolean) => void;
 }
 
 export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYER'): SocketHookState {
@@ -81,6 +111,8 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [counts, setCounts] = useState<{ total: number; connected: number }>({ total: 0, connected: 0 });
   const [lastError, setLastError] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(25);
+  const [pillarAnswers, setPillarAnswers] = useState<PillarAnswerRecord[]>([]);
+  const [hostPlayers, setHostPlayers] = useState<PlayerRecord[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -137,6 +169,8 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
               if (data.podium) setPodium(data.podium);
               if (data.finalists) setFinalists(data.finalists);
               if (data.counts) setCounts(data.counts);
+              if (data.pillarAnswers) setPillarAnswers(data.pillarAnswers);
+              if (data.players) setHostPlayers(data.players);
               break;
 
             case 'JOIN_SUCCESS':
@@ -203,6 +237,18 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
             case 'PODIUM_REVEAL':
               setGameState((prev) => ({ ...prev, game_status: 'PODIUM_WINNERS' }));
               if (data.podium) setPodium(data.podium);
+              break;
+
+            case 'PILLAR_ANSWERS_UPDATE':
+              if (data.pillarAnswers) setPillarAnswers(data.pillarAnswers);
+              break;
+
+            case 'PLAYERS_UPDATE':
+              if (data.players) setHostPlayers(data.players);
+              break;
+
+            case 'PILLAR_ANSWER_SAVED':
+            case 'PILLAR_ALREADY_ANSWERED':
               break;
 
             case 'ERROR_MSG':
@@ -273,6 +319,16 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
     });
   }, [send, activeQuestion, remainingSeconds]);
 
+  const submitPillarAnswer = useCallback((pillarId: number, questionId: number, selectedOption: string, isCorrect: boolean) => {
+    send({
+      type: 'CLIENT_SUBMIT_PILLAR_ANSWER',
+      pillarId,
+      questionId,
+      selectedOption,
+      isCorrect
+    });
+  }, [send]);
+
   return {
     isConnected,
     role: viewRole,
@@ -287,8 +343,11 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
     counts,
     lastError,
     remainingSeconds,
+    pillarAnswers,
+    hostPlayers,
     send,
     joinAsPlayer,
-    submitAnswer
+    submitAnswer,
+    submitPillarAnswer
   };
 }

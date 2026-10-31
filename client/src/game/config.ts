@@ -266,5 +266,10 @@ export function createLevel1(): LevelData {
     checkpoints: [
       { x: 100 * TILE, y: 12 * TILE },
     ],
+    pillars: [
+      { id: 1, x: 60 * TILE, y: 9 * TILE },
+      { id: 2, x: 116 * TILE, y: 9 * TILE },
+      { id: 3, x: 173 * TILE, y: 9 * TILE },
+    ],
   };
 }
