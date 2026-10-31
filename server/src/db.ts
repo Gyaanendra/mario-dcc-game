@@ -1,20 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
 import { GameStateRecord, Player, Question, PlayerAnswer, JudgeScore, GameStatus } from './types.js';
 
-const DB_DIR = path.resolve(process.cwd(), 'data');
+const DB_DIR = path.resolve(process.env.DATA_DIR || path.resolve(process.cwd(), 'data'));
 if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
 const DB_PATH = path.join(DB_DIR, 'mario_quest.db');
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export class DatabaseManager {
   private db: DatabaseSync;
 
-  constructor() {
-    this.db = new DatabaseSync(DB_PATH);
+  constructor(dbPath = DB_PATH) {
+    this.db = new DatabaseSync(dbPath);
     this.initPragmas();
     this.initSchema();
   }
@@ -38,7 +40,15 @@ export class DatabaseManager {
         question_start_time INTEGER,
         question_duration_sec INTEGER DEFAULT 25,
         sudden_death_active INTEGER DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deadline_at INTEGER,
+        remaining_ms INTEGER DEFAULT 0,
+        paused_at INTEGER,
+        speaker_id TEXT,
+        speaker_deadline_at INTEGER,
+        speaker_remaining_ms INTEGER DEFAULT 120000,
+        speaker_running INTEGER DEFAULT 0,
+        results_verified INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS players (
@@ -53,7 +63,8 @@ export class DatabaseManager {
         is_qualified_level2 INTEGER DEFAULT 0,
         is_qualified_level3 INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_ping_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        last_ping_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        session_token_hash TEXT
       );
 
       CREATE TABLE IF NOT EXISTS questions (
@@ -69,7 +80,8 @@ export class DatabaseManager {
         explanation TEXT,
         points INTEGER DEFAULT 100,
         time_limit_sec INTEGER DEFAULT 25,
-        sort_order INTEGER DEFAULT 0
+        sort_order INTEGER DEFAULT 0,
+        is_practice INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS player_answers (
@@ -100,7 +112,47 @@ export class DatabaseManager {
         UNIQUE(finalist_id, judge_name),
         FOREIGN KEY(finalist_id) REFERENCES players(id)
       );
+
+      CREATE TABLE IF NOT EXISTS cutoff_state (
+        level INTEGER PRIMARY KEY,
+        target_count INTEGER NOT NULL,
+        safe_ids TEXT NOT NULL,
+        pending_ids TEXT NOT NULL,
+        next_question_index INTEGER DEFAULT 0,
+        status TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS final_tiebreak_scores (
+        finalist_id TEXT NOT NULL,
+        judge_name TEXT NOT NULL,
+        round_no INTEGER NOT NULL,
+        clarity_score INTEGER NOT NULL CHECK(clarity_score BETWEEN 0 AND 5),
+        reasoning_score INTEGER NOT NULL CHECK(reasoning_score BETWEEN 0 AND 5),
+        PRIMARY KEY(finalist_id, judge_name, round_no)
+      );
+      CREATE TABLE IF NOT EXISTS opened_questions (
+        question_id INTEGER PRIMARY KEY,
+        opened_at INTEGER NOT NULL,
+        closed_at INTEGER
+      );
     `);
+
+    // Upgrade databases created by the original app without discarding event data.
+    const additions: Record<string, Record<string, string>> = {
+      game_state: {
+        deadline_at: 'INTEGER', remaining_ms: 'INTEGER DEFAULT 0', paused_at: 'INTEGER',
+        speaker_id: 'TEXT', speaker_deadline_at: 'INTEGER', speaker_remaining_ms: 'INTEGER DEFAULT 120000',
+        speaker_running: 'INTEGER DEFAULT 0', results_verified: 'INTEGER DEFAULT 0'
+      },
+      players: { session_token_hash: 'TEXT' },
+      questions: { is_practice: 'INTEGER DEFAULT 0' }
+    };
+    for (const [table, columns] of Object.entries(additions)) {
+      const existing = new Set((this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
+      for (const [column, definition] of Object.entries(columns)) {
+        if (!existing.has(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    }
 
     // Ensure initial game_state record exists
     const state = this.db.prepare('SELECT * FROM game_state WHERE id = 1').get();
@@ -143,6 +195,14 @@ export class DatabaseManager {
         active_question_id = NULL,
         question_start_time = NULL,
         sudden_death_active = 0,
+        deadline_at = NULL,
+        remaining_ms = 0,
+        paused_at = NULL,
+        speaker_id = NULL,
+        speaker_deadline_at = NULL,
+        speaker_remaining_ms = 120000,
+        speaker_running = 0,
+        results_verified = 0,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1;
 
@@ -155,36 +215,58 @@ export class DatabaseManager {
 
       DELETE FROM player_answers;
       DELETE FROM judge_scores;
+      DELETE FROM cutoff_state;
+      DELETE FROM final_tiebreak_scores;
+      DELETE FROM opened_questions;
     `);
   }
 
   // --- Player Methods ---
-  getOrCreatePlayer(studentId: string, name: string, avatarId: string): Player {
-    const existing = this.db.prepare(`
-      SELECT *, (level1_score + level2_score + CAST(level3_score AS INTEGER)) as total_coins
-      FROM players WHERE student_id = ?
-    `).get(studentId) as unknown as Player | undefined;
-
-    if (existing) {
-      this.db.prepare(`
-        UPDATE players SET name = ?, avatar_id = ?, is_connected = 1, last_ping_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(name, avatarId, existing.id);
-      return { ...existing, name, avatar_id: avatarId, is_connected: 1 };
+  createPlayer(studentId: string, name: string, avatarId: string): { player: Player; sessionToken: string } {
+    const normalizedId = studentId.trim().toUpperCase();
+    const normalizedName = name.trim();
+    if (!/^[A-Z0-9@._-]{3,80}$/.test(normalizedId) || normalizedName.length < 2 || normalizedName.length > 60) {
+      throw new Error('Enter a valid roll number or email and a display name of 2–60 characters');
     }
+    const existing = this.db.prepare(`
+      SELECT *, (level1_score + level2_score) as total_coins
+      FROM players WHERE student_id = ?
+    `).get(normalizedId) as unknown as Player | undefined;
+
+    if (existing) throw new Error('This roll number is already registered. Reopen the original phone to reconnect, or ask the event host for help.');
 
     const id = crypto.randomUUID();
+    const sessionToken = randomBytes(32).toString('base64url');
     this.db.prepare(`
-      INSERT INTO players (id, student_id, name, avatar_id, is_connected, level1_score, level2_score, level3_score, is_qualified_level2, is_qualified_level3)
-      VALUES (?, ?, ?, ?, 1, 0, 0, 0, 0, 0)
-    `).run(id, studentId.trim().toUpperCase(), name.trim(), avatarId);
+      INSERT INTO players (id, student_id, name, avatar_id, is_connected, level1_score, level2_score, level3_score, is_qualified_level2, is_qualified_level3, session_token_hash)
+      VALUES (?, ?, ?, ?, 1, 0, 0, 0, 0, 0, ?)
+    `).run(id, normalizedId, normalizedName, avatarId === 'luigi' ? 'luigi' : 'mario', tokenHash(sessionToken));
 
-    return this.getPlayerById(id)!;
+    return { player: this.getPlayerById(id)!, sessionToken };
+  }
+
+  getPlayerBySessionToken(token: string): Player | undefined {
+    if (typeof token !== 'string' || token.length < 32 || token.length > 128) return undefined;
+    return this.db.prepare(`
+      SELECT *, (level1_score + level2_score) as total_coins
+      FROM players WHERE session_token_hash = ?
+    `).get(tokenHash(token)) as unknown as Player | undefined;
+  }
+
+  reissueSession(studentId: string): { sessionToken: string; playerId: string } {
+    const normalizedId = studentId.trim().toUpperCase();
+    const row = this.db.prepare('SELECT id FROM players WHERE student_id = ?').get(normalizedId) as { id: string } | undefined;
+    if (!row) throw new Error('Player not found');
+    const token = randomBytes(32).toString('base64url');
+    const result = this.db.prepare('UPDATE players SET session_token_hash = ? WHERE student_id = ?')
+      .run(tokenHash(token), normalizedId);
+    if (!result.changes) throw new Error('Player not found');
+    return { sessionToken: token, playerId: row.id };
   }
 
   getPlayerById(id: string): Player | undefined {
     return this.db.prepare(`
-      SELECT *, (level1_score + level2_score + CAST(level3_score AS INTEGER)) as total_coins
+      SELECT *, (level1_score + level2_score) as total_coins
       FROM players WHERE id = ?
     `).get(id) as unknown as Player | undefined;
   }
@@ -196,7 +278,7 @@ export class DatabaseManager {
 
   getAllPlayers(): Player[] {
     return this.db.prepare(`
-      SELECT *, (level1_score + level2_score + CAST(level3_score AS INTEGER)) as total_coins
+      SELECT *, (level1_score + level2_score) as total_coins
       FROM players ORDER BY total_coins DESC
     `).all() as unknown as Player[];
   }
@@ -218,52 +300,94 @@ export class DatabaseManager {
     if (includeSuddenDeath) {
       return this.db.prepare("SELECT * FROM questions WHERE level = ? OR category = 'SUDDEN_DEATH' ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
     }
-    return this.db.prepare("SELECT * FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
+    return this.db.prepare("SELECT * FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0 ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
   }
 
-  getSuddenDeathQuestions(): Question[] {
-    return this.db.prepare("SELECT * FROM questions WHERE category = 'SUDDEN_DEATH' ORDER BY id ASC").all() as unknown as Question[];
+  getPracticeQuestion(): Question | undefined {
+    return this.db.prepare('SELECT * FROM questions WHERE is_practice = 1 LIMIT 1').get() as unknown as Question | undefined;
+  }
+
+  getSuddenDeathQuestions(level?: number): Question[] {
+    if (level) return this.db.prepare("SELECT * FROM questions WHERE category = 'SUDDEN_DEATH' AND level = ? ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
+    return this.db.prepare("SELECT * FROM questions WHERE category = 'SUDDEN_DEATH' ORDER BY sort_order ASC, id ASC").all() as unknown as Question[];
   }
 
   countQuestionsInLevel(level: number): number {
-    const res = this.db.prepare("SELECT COUNT(*) as cnt FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH'").get(level) as { cnt: number };
+    const res = this.db.prepare("SELECT COUNT(*) as cnt FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0").get(level) as { cnt: number };
     return res?.cnt || 0;
   }
 
-  // --- Answers & Scoring Methods ---
-  submitAnswer(playerId: string, questionId: number, selectedOption: string, responseTimeMs: number): { isCorrect: boolean; coinsAwarded: number; alreadyAnswered: boolean } {
+  getPlayedQuestionIds(level: number): number[] {
+    return (this.db.prepare(`SELECT opened_questions.question_id AS id FROM opened_questions
+      JOIN questions ON questions.id = opened_questions.question_id
+      WHERE questions.level = ? AND questions.category != 'SUDDEN_DEATH' AND questions.is_practice = 0
+      AND opened_questions.closed_at IS NOT NULL`).all(level) as { id: number }[]).map(row => row.id);
+  }
+  markQuestionOpened(questionId: number) {
+    if (this.db.prepare('SELECT 1 FROM opened_questions WHERE question_id = ?').get(questionId)) throw new Error('Question has already been played');
+    this.db.prepare('INSERT INTO opened_questions (question_id, opened_at) VALUES (?, ?)').run(questionId, Date.now());
+  }
+  markQuestionClosed(questionId: number) {
+    this.db.prepare('UPDATE opened_questions SET closed_at = ? WHERE question_id = ? AND closed_at IS NULL').run(Date.now(), questionId);
+  }
+  voidQuestion(questionId: number) {
     const question = this.getQuestion(questionId);
-    if (!question) {
-      throw new Error('Question not found');
+    if (!question || question.category === 'SUDDEN_DEATH') throw new Error('This question cannot be voided');
+    const scoreColumn = question.level === 1 ? 'level1_score' : 'level2_score';
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const answers = this.db.prepare('SELECT player_id, coins_awarded FROM player_answers WHERE question_id = ?').all(questionId) as { player_id: string; coins_awarded: number }[];
+      const subtract = this.db.prepare(`UPDATE players SET ${scoreColumn} = ${scoreColumn} - ? WHERE id = ?`);
+      for (const answer of answers) if (answer.coins_awarded) subtract.run(answer.coins_awarded, answer.player_id);
+      this.db.prepare('DELETE FROM player_answers WHERE question_id = ?').run(questionId);
+      this.db.prepare('DELETE FROM opened_questions WHERE question_id = ?').run(questionId);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+
+  // --- Answers & Scoring Methods ---
+  submitAnswer(playerId: string, question: Question, selectedOption: string, responseTimeMs: number): { isCorrect: boolean; coinsAwarded: number; alreadyAnswered: boolean } {
+    const option = selectedOption.toUpperCase();
+    if (!['A', 'B', 'C', 'D'].includes(option) || !(question as any)[`option_${option.toLowerCase()}`]) {
+      throw new Error('Invalid answer option');
     }
 
-    const existing = this.db.prepare('SELECT * FROM player_answers WHERE player_id = ? AND question_id = ?').get(playerId, questionId);
+    const existing = this.db.prepare('SELECT * FROM player_answers WHERE player_id = ? AND question_id = ?').get(playerId, question.id);
     if (existing) {
       return { isCorrect: false, coinsAwarded: 0, alreadyAnswered: true };
     }
 
-    const isCorrect = selectedOption.toUpperCase() === question.correct_option.toUpperCase();
+    const isCorrect = option === question.correct_option.toUpperCase();
     let coinsAwarded = 0;
 
-    if (isCorrect) {
+    if (isCorrect && !question.is_practice && question.category !== 'SUDDEN_DEATH') {
       // Base points + small speed bonus (up to 20 bonus points if answered quickly)
       const maxTimeMs = question.time_limit_sec * 1000;
-      const speedFactor = Math.max(0, 1 - (responseTimeMs / maxTimeMs));
+      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / maxTimeMs));
       const speedBonus = Math.round(speedFactor * 20);
       coinsAwarded = question.points + speedBonus;
     }
 
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
     this.db.prepare(`
       INSERT INTO player_answers (player_id, question_id, selected_option, is_correct, response_time_ms, coins_awarded)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(playerId, questionId, selectedOption.toUpperCase(), isCorrect ? 1 : 0, responseTimeMs, coinsAwarded);
+    `).run(playerId, question.id, option, isCorrect ? 1 : 0, Math.max(0, Math.floor(responseTimeMs)), coinsAwarded);
 
     // Update player score for that level
-    const scoreCol = question.level === 1 ? 'level1_score' : 'level2_score';
-    this.db.prepare(`
+    if (coinsAwarded > 0) {
+      const scoreCol = question.level === 1 ? 'level1_score' : 'level2_score';
+      this.db.prepare(`
       UPDATE players SET ${scoreCol} = ${scoreCol} + ?, last_ping_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(coinsAwarded, playerId);
+      `).run(coinsAwarded, playerId);
+    }
+    this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
 
     return { isCorrect, coinsAwarded, alreadyAnswered: false };
   }
@@ -290,70 +414,116 @@ export class DatabaseManager {
   // --- Leaderboards & Cut-offs ---
   getLeaderboard(level: number = 1, limit: number = 50) {
     let orderCol = 'level1_score';
-    if (level === 2) orderCol = '(level1_score + level2_score)';
-    if (level >= 3) orderCol = '(level1_score + level2_score + CAST(level3_score AS INTEGER))';
+    let where = '';
+    if (level === 2) orderCol = 'level2_score';
+    if (level >= 3) orderCol = 'level3_score';
+    if (level === 2) where = 'WHERE is_qualified_level2 = 1';
+    if (level >= 3) where = 'WHERE is_qualified_level3 = 1';
 
     return this.db.prepare(`
       SELECT id, student_id, name, avatar_id, level1_score, level2_score, level3_score,
-             (level1_score + level2_score + CAST(level3_score AS INTEGER)) as total_coins,
+             (level1_score + level2_score) as total_coins,
              is_qualified_level2, is_qualified_level3
       FROM players
-      ORDER BY ${orderCol} DESC, last_ping_at ASC
+      ${where}
+      ORDER BY ${orderCol} DESC, id ASC
       LIMIT ?
     `).all(limit) as unknown as Player[];
   }
 
-  executeCutoffLevel2(topN: number = 50): { qualifiedCount: number; cutOffScore: number } {
-    // Reset all
-    this.db.exec('UPDATE players SET is_qualified_level2 = 0');
+  executeCutoffLevel2(topN = 50) { return this.prepareCutoff(2, topN); }
+  executeCutoffLevel3(topN = 10) { return this.prepareCutoff(3, topN); }
 
-    // Select top N by level1_score
-    const topPlayers = this.db.prepare(`
-      SELECT id, level1_score FROM players
-      ORDER BY level1_score DESC, last_ping_at ASC
-      LIMIT ?
-    `).all(topN) as { id: string; level1_score: number }[];
-
-    if (topPlayers.length === 0) return { qualifiedCount: 0, cutOffScore: 0 };
-
-    for (const p of topPlayers) {
-      this.db.prepare('UPDATE players SET is_qualified_level2 = 1 WHERE id = ?').run(p.id);
-    }
-
-    const cutOffScore = topPlayers[topPlayers.length - 1].level1_score;
-    return { qualifiedCount: topPlayers.length, cutOffScore };
+  getCutoffState(level: number): { level: number; targetCount: number; safeIds: string[]; pendingIds: string[]; nextQuestionIndex: number; status: string } | null {
+    const row = this.db.prepare('SELECT * FROM cutoff_state WHERE level = ?').get(level) as any;
+    return row ? {
+      level, targetCount: row.target_count, safeIds: JSON.parse(row.safe_ids),
+      pendingIds: JSON.parse(row.pending_ids), nextQuestionIndex: row.next_question_index, status: row.status
+    } : null;
   }
 
-  executeCutoffLevel3(topN: number = 10): { qualifiedCount: number; cutOffScore: number } {
-    // Reset all
-    this.db.exec('UPDATE players SET is_qualified_level3 = 0');
+  private saveCutoff(level: number, targetCount: number, safeIds: string[], pendingIds: string[], nextQuestionIndex: number, status: string) {
+    this.db.prepare(`INSERT INTO cutoff_state (level, target_count, safe_ids, pending_ids, next_question_index, status)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(level) DO UPDATE SET
+      target_count=excluded.target_count, safe_ids=excluded.safe_ids, pending_ids=excluded.pending_ids,
+      next_question_index=excluded.next_question_index, status=excluded.status`)
+      .run(level, targetCount, JSON.stringify(safeIds), JSON.stringify(pendingIds), nextQuestionIndex, status);
+  }
 
-    // Select top N by cumulative level1 + level2
-    const topPlayers = this.db.prepare(`
-      SELECT id, (level1_score + level2_score) as total
-      FROM players
-      WHERE is_qualified_level2 = 1
-      ORDER BY total DESC, last_ping_at ASC
-      LIMIT ?
-    `).all(topN) as { id: string; total: number }[];
-
-    if (topPlayers.length === 0) return { qualifiedCount: 0, cutOffScore: 0 };
-
-    for (const p of topPlayers) {
-      this.db.prepare('UPDATE players SET is_qualified_level3 = 1 WHERE id = ?').run(p.id);
+  private applyQualified(level: number, ids: string[]) {
+    const column = level === 2 ? 'is_qualified_level2' : 'is_qualified_level3';
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec(`UPDATE players SET ${column} = 0`);
+      const update = this.db.prepare(`UPDATE players SET ${column} = 1 WHERE id = ?`);
+      for (const id of ids) update.run(id);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
+  }
 
-    const cutOffScore = topPlayers[topPlayers.length - 1].total;
-    return { qualifiedCount: topPlayers.length, cutOffScore };
+  private prepareCutoff(level: number, topN: number) {
+    const existing = this.getCutoffState(level);
+    if (existing) return { qualifiedCount: existing.safeIds.length, pendingCount: existing.pendingIds.length, status: existing.status };
+    const scoreColumn = level === 2 ? 'level1_score' : 'level2_score';
+    const where = level === 2 ? '' : 'WHERE is_qualified_level2 = 1';
+    const rows = this.db.prepare(`SELECT id, ${scoreColumn} AS score FROM players ${where} ORDER BY score DESC, id ASC`).all() as { id: string; score: number }[];
+    if (!rows.length) throw new Error('No players available for cut-off');
+    const count = Math.min(topN, rows.length);
+    const boundary = rows[count - 1].score;
+    const hasTie = rows.length > count && rows[count].score === boundary;
+    const safeIds = hasTie ? rows.filter(p => p.score > boundary).map(p => p.id) : rows.slice(0, count).map(p => p.id);
+    const pendingIds = hasTie ? rows.filter(p => p.score === boundary).map(p => p.id) : [];
+    const status = hasTie ? 'PENDING' : 'COMPLETE';
+    this.saveCutoff(level, count, safeIds, pendingIds, 0, status);
+    if (!hasTie) this.applyQualified(level, safeIds);
+    return { qualifiedCount: safeIds.length, pendingCount: pendingIds.length, status };
+  }
+
+  getNextTieQuestion(level: number): Question {
+    const cutoff = this.getCutoffState(level);
+    if (!cutoff || cutoff.status !== 'PENDING') throw new Error('No cut-off tie is pending');
+    const question = this.getSuddenDeathQuestions(level - 1)[cutoff.nextQuestionIndex];
+    if (!question) throw new Error('No unused sudden-death question remains; add reviewed questions before continuing');
+    this.saveCutoff(level, cutoff.targetCount, cutoff.safeIds, cutoff.pendingIds, cutoff.nextQuestionIndex + 1, cutoff.status);
+    return question;
+  }
+
+  resolveTieQuestion(level: number, questionId: number) {
+    const cutoff = this.getCutoffState(level);
+    if (!cutoff || cutoff.status !== 'PENDING') return null;
+    const remainingSlots = cutoff.targetCount - cutoff.safeIds.length;
+    const pending = cutoff.pendingIds.map(id => ({ id, answer: this.getPlayerAnswer(id, questionId) }));
+    const correct = pending.filter(p => p.answer?.is_correct).sort((a, b) => a.answer!.response_time_ms - b.answer!.response_time_ms);
+    let safeIds = cutoff.safeIds;
+    let pendingIds = cutoff.pendingIds;
+    if (correct.length >= remainingSlots) {
+      const boundaryTime = correct[remainingSlots - 1].answer!.response_time_ms;
+      safeIds = [...safeIds, ...correct.filter(p => p.answer!.response_time_ms < boundaryTime).map(p => p.id)];
+      pendingIds = correct.filter(p => p.answer!.response_time_ms === boundaryTime).map(p => p.id);
+      if (safeIds.length + pendingIds.length === cutoff.targetCount) {
+        safeIds = [...safeIds, ...pendingIds];
+        pendingIds = [];
+      }
+    } else if (correct.length) {
+      safeIds = [...safeIds, ...correct.map(p => p.id)];
+      pendingIds = pending.filter(p => !p.answer?.is_correct).map(p => p.id);
+    }
+    const status = pendingIds.length ? 'PENDING' : 'COMPLETE';
+    this.saveCutoff(level, cutoff.targetCount, safeIds, pendingIds, cutoff.nextQuestionIndex, status);
+    if (status === 'COMPLETE') this.applyQualified(level, safeIds);
+    return { status, qualifiedCount: safeIds.length, pendingCount: pendingIds.length };
   }
 
   getTop10Finalists(): Player[] {
     return this.db.prepare(`
       SELECT id, student_id, name, avatar_id, level1_score, level2_score, level3_score,
-             (level1_score + level2_score + CAST(level3_score AS INTEGER)) as total_coins
+             (level1_score + level2_score) as total_coins
       FROM players
       WHERE is_qualified_level3 = 1
-      ORDER BY (level1_score + level2_score + CAST(level3_score AS INTEGER)) DESC
+      ORDER BY level2_score DESC, id ASC
       LIMIT 10
     `).all() as unknown as Player[];
   }
@@ -368,6 +538,11 @@ export class DatabaseManager {
     communication_score: number;
     remarks?: string;
   }) {
+    if (!this.getJudgeNames().includes(score.judge_name)) throw new Error('Judge is not in the configured roster');
+    if (!this.getPlayerById(score.finalist_id)?.is_qualified_level3) throw new Error('Only finalists can be judged');
+    for (const value of [score.clarity_score, score.reasoning_score, score.judgement_score, score.communication_score]) {
+      if (!Number.isInteger(value) || value < 0 || value > 5) throw new Error('Rubric scores must be whole numbers from 0 to 5');
+    }
     const total = score.clarity_score + score.reasoning_score + score.judgement_score + score.communication_score;
     this.db.prepare(`
       INSERT INTO judge_scores (finalist_id, judge_name, clarity_score, reasoning_score, judgement_score, communication_score, total_score, remarks)
@@ -398,19 +573,97 @@ export class DatabaseManager {
 
     const avgScore = avgRes?.avg_score || 0;
     this.db.prepare('UPDATE players SET level3_score = ? WHERE id = ?').run(avgScore, score.finalist_id);
+    this.db.exec('DELETE FROM final_tiebreak_scores');
+    this.updateGameState({ results_verified: 0 } as any);
 
     return { total, avgScore };
   }
 
+  getJudgeNames(): string[] {
+    const names = (process.env.JUDGE_NAMES || 'DCC Judge').split(',').map(s => s.trim()).filter(Boolean);
+    return [...new Set(names)];
+  }
+
+  getJudgeCompletion() {
+    const judges = this.getJudgeNames();
+    const finalists = this.getTop10Finalists();
+    const scored = this.db.prepare('SELECT finalist_id, judge_name FROM judge_scores').all() as { finalist_id: string; judge_name: string }[];
+    const missing = finalists.flatMap(player => judges.filter(judge => !scored.some(s => s.finalist_id === player.id && s.judge_name === judge))
+      .map(judge => ({ finalistId: player.id, name: player.name, judge })));
+    return { expected: finalists.length * judges.length, completed: finalists.length * judges.length - missing.length, missing };
+  }
+
+  getJudgeMatrix() {
+    return this.db.prepare(`SELECT finalist_id, judge_name, clarity_score, reasoning_score,
+      judgement_score, communication_score, total_score, remarks
+      FROM judge_scores ORDER BY judge_name, finalist_id`).all() as {
+      finalist_id: string; judge_name: string; clarity_score: number; reasoning_score: number;
+      judgement_score: number; communication_score: number; total_score: number; remarks: string
+    }[];
+  }
+
+  saveFinalTiebreak(score: { finalist_id: string; judge_name: string; round_no: number; clarity_score: number; reasoning_score: number }) {
+    if (this.getJudgeCompletion().missing.length) throw new Error('Complete every judge rubric before the final follow-up');
+    if (!this.getJudgeNames().includes(score.judge_name)) throw new Error('Judge is not in the configured roster');
+    if (!this.getFinalTieCandidates().some(p => p.id === score.finalist_id)) throw new Error('Finalist is not in a podium tie');
+    if (!Number.isInteger(score.round_no) || score.round_no < 1 || score.round_no > 20) throw new Error('Invalid follow-up round');
+    for (const value of [score.clarity_score, score.reasoning_score]) {
+      if (!Number.isInteger(value) || value < 0 || value > 5) throw new Error('Follow-up scores must be whole numbers from 0 to 5');
+    }
+    this.db.prepare(`INSERT INTO final_tiebreak_scores (finalist_id, judge_name, round_no, clarity_score, reasoning_score)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(finalist_id, judge_name, round_no) DO UPDATE SET
+      clarity_score=excluded.clarity_score, reasoning_score=excluded.reasoning_score`)
+      .run(score.finalist_id, score.judge_name, score.round_no, score.clarity_score, score.reasoning_score);
+    this.updateGameState({ results_verified: 0 } as any);
+  }
+
+  private getFinalRanking() {
+    const finalists = this.getTop10Finalists();
+    const tieScores = this.db.prepare(`SELECT finalist_id, ROUND(AVG(clarity_score + reasoning_score), 3) AS tie_score,
+      COUNT(*) AS score_count FROM final_tiebreak_scores GROUP BY finalist_id`).all() as { finalist_id: string; tie_score: number; score_count: number }[];
+    return finalists.map(player => {
+      const tie = tieScores.find(s => s.finalist_id === player.id);
+      return { ...player, tie_score: tie?.tie_score ?? null, tie_score_count: tie?.score_count ?? 0 };
+    }).sort((a, b) => b.level3_score - a.level3_score || (b.tie_score ?? -1) - (a.tie_score ?? -1) || a.id.localeCompare(b.id));
+  }
+
+  getFinalTieCandidates() {
+    const ranked = this.getTop10Finalists().sort((a, b) => b.level3_score - a.level3_score || a.id.localeCompare(b.id));
+    const judges = this.getJudgeNames();
+    const rows = this.db.prepare('SELECT * FROM final_tiebreak_scores').all() as {
+      finalist_id: string; judge_name: string; round_no: number; clarity_score: number; reasoning_score: number
+    }[];
+    const pending: Player[] = [];
+    for (let start = 0; start < ranked.length;) {
+      const end = ranked.findIndex((p, index) => index > start && p.level3_score !== ranked[start].level3_score);
+      const stop = end < 0 ? ranked.length : end;
+      const group = ranked.slice(start, stop);
+      if (start < 3 && group.length > 1) {
+        const groupRows = rows.filter(row => group.some(p => p.id === row.finalist_id));
+        const lastRound = Math.max(0, ...groupRows.map(row => row.round_no));
+        const complete = lastRound > 0 && group.every(p => judges.every(judge =>
+          Array.from({ length: lastRound }, (_, index) => index + 1).every(round =>
+            groupRows.some(row => row.finalist_id === p.id && row.judge_name === judge && row.round_no === round))));
+        const rankedGroup = group.map(p => ({ player: p,
+          score: groupRows.filter(row => row.finalist_id === p.id).reduce((sum, row) => sum + row.clarity_score + row.reasoning_score, 0) }))
+          .sort((a, b) => b.score - a.score || a.player.id.localeCompare(b.player.id));
+        const unresolved = !complete || rankedGroup.some((entry, index) =>
+          index < rankedGroup.length - 1 && start + index < 3 && entry.score === rankedGroup[index + 1].score);
+        if (unresolved) pending.push(...group);
+      }
+      start = stop;
+    }
+    return pending;
+  }
+
+  getResultReadiness() {
+    const completion = this.getJudgeCompletion();
+    const ties = completion.missing.length ? [] : this.getFinalTieCandidates().map(p => ({ id: p.id, name: p.name }));
+    return { ...completion, ties, ready: completion.expected > 0 && !completion.missing.length && !ties.length };
+  }
+
   getFinalistPodium(): { rank: number; name: string; student_id: string; avatar_id: string; total_score: number; coins: number }[] {
-    const finalists = this.db.prepare(`
-      SELECT id, student_id, name, avatar_id, level1_score, level2_score, level3_score,
-             (level1_score + level2_score + CAST(level3_score AS INTEGER)) as coins
-      FROM players
-      WHERE is_qualified_level3 = 1
-      ORDER BY level3_score DESC, coins DESC
-      LIMIT 10
-    `).all() as unknown as (Player & { coins: number })[];
+    const finalists = this.getFinalRanking();
 
     return finalists.map((f, idx) => ({
       rank: idx + 1,
@@ -418,7 +671,8 @@ export class DatabaseManager {
       student_id: f.student_id,
       avatar_id: f.avatar_id,
       total_score: Number(f.level3_score.toFixed(1)),
-      coins: f.coins
+      coins: f.total_coins,
+      tie_score: f.tie_score
     }));
   }
 }

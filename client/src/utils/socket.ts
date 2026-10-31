@@ -9,286 +9,235 @@ export interface GameState {
   remaining_seconds: number;
   timer_paused: boolean;
   sudden_death_active: number;
+  speaker_id: string | null;
+  speaker_remaining_ms: number;
+  speaker_running: number;
+  results_verified: number;
 }
-
 export interface PlayerData {
-  id: string;
-  student_id: string;
-  name: string;
-  avatar_id: string;
-  level1_score: number;
-  level2_score: number;
-  level3_score: number;
-  total_coins: number;
-  is_qualified_level2: number;
-  is_qualified_level3: number;
+  id: string; student_id: string; name: string; avatar_id: string;
+  level1_score: number; level2_score: number; level3_score: number;
+  total_coins: number; is_qualified_level2: number; is_qualified_level3: number;
 }
-
 export interface QuestionData {
-  id: number;
-  level: number;
-  category: string;
-  prompt: string;
-  option_a: string;
-  option_b: string;
-  option_c?: string | null;
-  option_d?: string | null;
-  time_limit_sec: number;
-  points: number;
-  correct_option?: string | null;
-  explanation?: string | null;
+  id: number; level: number; category: string; prompt: string;
+  option_a: string; option_b: string; option_c?: string | null; option_d?: string | null;
+  time_limit_sec: number; points: number; is_practice?: number;
+  sort_order?: number;
+  correct_option?: string | null; explanation?: string | null;
 }
-
+export interface CutoffData {
+  level: number; targetCount: number; safeIds: string[]; pendingIds: string[];
+  nextQuestionIndex: number; status: string;
+}
+export interface JudgeReadiness {
+  expected: number; completed: number;
+  followUpRequired?: boolean;
+  missing?: { finalistId: string; name: string; judge: string }[];
+  ties?: { id: string; name: string }[];
+  ready?: boolean;
+}
+export interface JudgeScore {
+  finalist_id: string; judge_name: string; clarity_score: number; reasoning_score: number;
+  judgement_score: number; communication_score: number; total_score: number; remarks: string;
+}
 export interface SocketHookState {
   isConnected: boolean;
-  role: 'PLAYER' | 'PROJECTOR' | 'HOST' | null;
+  isAuthenticated: boolean;
+  isReconnecting: boolean;
+  answerPending: boolean;
   gameState: GameState;
   player: PlayerData | null;
   activeQuestion: QuestionData | null;
   myAnswer: { selected_option: string; is_correct?: boolean | null; coins_awarded?: number | null } | null;
+  canAnswer: boolean;
+  isSpectator: boolean;
+  tiePending: boolean;
   answerStats: Record<string, number> | null;
-  leaderboard: any[];
+  leaderboard: PlayerData[];
   podium: any[];
-  finalists: any[];
+  finalists: PlayerData[];
   counts: { total: number; connected: number };
+  cutoff: CutoffData | null;
+  judgeNames: string[];
+  judgeReadiness: JudgeReadiness | null;
+  judgeMatrix: JudgeScore[];
+  levelQuestions: QuestionData[];
+  publicJoinUrl: string | null;
+  recoveryToken: { studentId: string; sessionToken: string } | null;
   lastError: string | null;
   remainingSeconds: number;
-  send: (msg: any) => void;
+  speakerRemainingMs: number;
+  send: (msg: any) => boolean;
   joinAsPlayer: (studentId: string, name: string, avatarId: string) => void;
   submitAnswer: (selectedOption: string) => void;
+  authenticateHost: (pin: string) => void;
+  reconnectWithToken: (token: string) => void;
+  clearError: () => void;
 }
+const initialGameState: GameState = {
+  current_level: 0, game_status: 'LOBBY', active_question_id: null,
+  question_start_time: null, question_duration_sec: 25, remaining_seconds: 0,
+  timer_paused: false, sudden_death_active: 0, speaker_id: null,
+  speaker_remaining_ms: 120000, speaker_running: 0, results_verified: 0
+};
+const wsUrl = () => `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYER'): SocketHookState {
   const [isConnected, setIsConnected] = useState(false);
-  const [gameState, setGameState] = useState<GameState>({
-    current_level: 0,
-    game_status: 'LOBBY',
-    active_question_id: null,
-    question_start_time: null,
-    question_duration_sec: 25,
-    remaining_seconds: 25,
-    timer_paused: false,
-    sudden_death_active: 0
-  });
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [answerPending, setAnswerPending] = useState(false);
+  const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [player, setPlayer] = useState<PlayerData | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<QuestionData | null>(null);
-  const [myAnswer, setMyAnswer] = useState<any>(null);
-  const [answerStats, setAnswerStats] = useState<any>(null);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [myAnswer, setMyAnswer] = useState<SocketHookState['myAnswer']>(null);
+  const [canAnswer, setCanAnswer] = useState(false);
+  const [isSpectator, setIsSpectator] = useState(false);
+  const [tiePending, setTiePending] = useState(false);
+  const [answerStats, setAnswerStats] = useState<Record<string, number> | null>(null);
+  const [leaderboard, setLeaderboard] = useState<PlayerData[]>([]);
   const [podium, setPodium] = useState<any[]>([]);
-  const [finalists, setFinalists] = useState<any[]>([]);
-  const [counts, setCounts] = useState<{ total: number; connected: number }>({ total: 0, connected: 0 });
+  const [finalists, setFinalists] = useState<PlayerData[]>([]);
+  const [counts, setCounts] = useState({ total: 0, connected: 0 });
+  const [cutoff, setCutoff] = useState<CutoffData | null>(null);
+  const [judgeNames, setJudgeNames] = useState<string[]>([]);
+  const [judgeReadiness, setJudgeReadiness] = useState<JudgeReadiness | null>(null);
+  const [judgeMatrix, setJudgeMatrix] = useState<JudgeScore[]>([]);
+  const [levelQuestions, setLevelQuestions] = useState<QuestionData[]>([]);
+  const [publicJoinUrl, setPublicJoinUrl] = useState<string | null>(null);
+  const [recoveryToken, setRecoveryToken] = useState<SocketHookState['recoveryToken']>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [remainingSeconds, setRemainingSeconds] = useState(25);
-
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [speakerRemainingMs, setSpeakerRemainingMs] = useState(120000);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<any>(null);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldReconnect = useRef(true);
 
-  const getWsUrl = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws`;
-  };
-
-  const connect = useCallback(() => {
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
-      return;
-    }
-
-    try {
-      const ws = new WebSocket(getWsUrl());
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        setLastError(null);
-
-        if (viewRole === 'PROJECTOR') {
-          ws.send(JSON.stringify({ type: 'PROJECTOR_CONNECT' }));
-        } else if (viewRole === 'HOST') {
-          const savedPin = localStorage.getItem('mcq_host_pin') || 'DCC2026';
-          ws.send(JSON.stringify({ type: 'HOST_AUTH', pin: savedPin }));
-        } else if (viewRole === 'PLAYER') {
-          const savedPlayerId = localStorage.getItem('mcq_player_id');
-          if (savedPlayerId) {
-            ws.send(JSON.stringify({ type: 'CLIENT_RECONNECT', playerId: savedPlayerId }));
-          }
+  const connect = useCallback(function connectSocket() {
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) return;
+    const ws = new WebSocket(wsUrl());
+    wsRef.current = ws;
+    ws.onopen = () => {
+      setIsConnected(true);
+      setLastError(null);
+      if (viewRole === 'PROJECTOR') ws.send(JSON.stringify({ type: 'PROJECTOR_CONNECT' }));
+      if (viewRole === 'HOST') {
+        const pin = sessionStorage.getItem('mcq_host_pin');
+        if (pin) ws.send(JSON.stringify({ type: 'HOST_AUTH', pin }));
+      }
+      if (viewRole === 'PLAYER') {
+        const linkedToken = new URLSearchParams(window.location.search).get('session');
+        if (linkedToken) {
+          localStorage.setItem('mcq_session_token', linkedToken);
+          window.history.replaceState({}, '', window.location.pathname);
         }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          switch (data.type) {
-            case 'SYNC_STATE':
-              if (data.gameState) {
-                setGameState(data.gameState);
-                if (data.gameState.remaining_seconds !== undefined) {
-                  setRemainingSeconds(data.gameState.remaining_seconds);
-                }
-              }
-              if (data.player !== undefined) setPlayer(data.player);
-              if (data.activeQuestion !== undefined) setActiveQuestion(data.activeQuestion);
-              if (data.myAnswer !== undefined) setMyAnswer(data.myAnswer);
-              if (data.answerStats) setAnswerStats(data.answerStats);
-              if (data.leaderboard) setLeaderboard(data.leaderboard);
-              if (data.podium) setPodium(data.podium);
-              if (data.finalists) setFinalists(data.finalists);
-              if (data.counts) setCounts(data.counts);
-              break;
-
-            case 'JOIN_SUCCESS':
-              if (data.playerId) {
-                localStorage.setItem('mcq_player_id', data.playerId);
-              }
-              if (data.player) setPlayer(data.player);
-              break;
-
-            case 'SESSION_EXPIRED':
-              localStorage.removeItem('mcq_player_id');
-              setPlayer(null);
-              break;
-
-            case 'TIMER_TICK':
-              setRemainingSeconds(data.remainingSeconds);
-              break;
-
-            case 'TIMER_PAUSED':
-              setGameState((prev) => ({ ...prev, timer_paused: true }));
-              break;
-
-            case 'TIMER_RESUMED':
-              setGameState((prev) => ({ ...prev, timer_paused: false }));
-              if (data.remainingSeconds !== undefined) setRemainingSeconds(data.remainingSeconds);
-              break;
-
-            case 'TIMER_EXTENDED':
-              setRemainingSeconds(data.remainingSeconds);
-              break;
-
-            case 'QUESTION_LOCKED':
-              setGameState((prev) => ({ ...prev, game_status: 'QUESTION_LOCKED' }));
-              if (data.answerStats) setAnswerStats(data.answerStats);
-              break;
-
-            case 'ANSWER_LOCKED':
-              setMyAnswer({ selected_option: data.selectedOption, is_correct: null, coins_awarded: data.coinsAwarded });
-              break;
-
-            case 'ANSWER_REVEALED':
-              setGameState((prev) => ({ ...prev, game_status: 'REVEAL' }));
-              if (data.answerStats) setAnswerStats(data.answerStats);
-              setActiveQuestion((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      correct_option: data.correct_option,
-                      explanation: data.explanation
-                    }
-                  : null
-              );
-              break;
-
-            case 'LEADERBOARD_UPDATE':
-              setGameState((prev) => ({ ...prev, game_status: 'LEVEL_LEADERBOARD' }));
-              if (data.leaderboard) setLeaderboard(data.leaderboard);
-              break;
-
-            case 'COUNTS_UPDATE':
-              setCounts({ total: data.totalRegistered, connected: data.connectedPlayers });
-              break;
-
-            case 'PODIUM_REVEAL':
-              setGameState((prev) => ({ ...prev, game_status: 'PODIUM_WINNERS' }));
-              if (data.podium) setPodium(data.podium);
-              break;
-
-            case 'ERROR_MSG':
-              setLastError(data.message);
-              break;
-          }
-        } catch (e) {
-          console.error('[WS Parse Error]', e);
+        const sessionToken = linkedToken || localStorage.getItem('mcq_session_token');
+        if (sessionToken) {
+          setIsReconnecting(true);
+          ws.send(JSON.stringify({ type: 'CLIENT_RECONNECT', sessionToken }));
         }
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        // Exponential reconnect
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 1500);
-      };
-
-      ws.onerror = () => {
-        setIsConnected(false);
-      };
-    } catch (e) {
-      console.error('[WS Connect Error]', e);
-    }
+      }
+    };
+    ws.onmessage = event => {
+      try {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case 'SYNC_STATE':
+            if (data.gameState) {
+              setGameState(data.gameState);
+              setRemainingSeconds(data.gameState.remaining_seconds ?? 0);
+              setSpeakerRemainingMs(data.gameState.speaker_remaining_ms ?? 120000);
+            }
+            if (data.player !== undefined) { setPlayer(data.player); setIsReconnecting(false); }
+            if (data.activeQuestion !== undefined) setActiveQuestion(data.activeQuestion);
+            if (data.myAnswer !== undefined) { setMyAnswer(data.myAnswer); setAnswerPending(false); }
+            if (data.canAnswer !== undefined) setCanAnswer(data.canAnswer);
+            if (data.isSpectator !== undefined) setIsSpectator(data.isSpectator);
+            if (data.tiePending !== undefined) setTiePending(data.tiePending);
+            if (data.answerStats !== undefined) setAnswerStats(data.answerStats);
+            if (data.leaderboard !== undefined) setLeaderboard(data.leaderboard);
+            if (data.podium !== undefined) setPodium(data.podium);
+            if (data.finalists !== undefined) setFinalists(data.finalists);
+            if (data.counts) setCounts(data.counts);
+            if (data.cutoff !== undefined) setCutoff(data.cutoff);
+            if (data.judgeNames) setJudgeNames(data.judgeNames);
+            if (data.judgeReadiness) setJudgeReadiness(data.judgeReadiness);
+            if (data.judgeMatrix) setJudgeMatrix(data.judgeMatrix);
+            if (data.levelQuestions) setLevelQuestions(data.levelQuestions.filter(Boolean));
+            if (data.publicJoinUrl !== undefined) setPublicJoinUrl(data.publicJoinUrl);
+            if (data.role === 'HOST') setIsAuthenticated(true);
+            break;
+          case 'JOIN_SUCCESS':
+            localStorage.setItem('mcq_session_token', data.sessionToken);
+            setPlayer(data.player); setIsReconnecting(false); break;
+          case 'SESSION_EXPIRED':
+            localStorage.removeItem('mcq_session_token');
+            setPlayer(null); setIsReconnecting(false); setLastError(data.message); break;
+          case 'HOST_AUTH_SUCCESS': setIsAuthenticated(true); break;
+          case 'HOST_AUTH_FAILED':
+            sessionStorage.removeItem('mcq_host_pin');
+            setIsAuthenticated(false); setLastError(data.message); break;
+          case 'ANSWER_LOCKED':
+            setMyAnswer({ selected_option: data.selectedOption, is_correct: null, coins_awarded: null });
+            setAnswerPending(false); break;
+          case 'ALREADY_ANSWERED': setAnswerPending(false); setLastError(data.message); break;
+          case 'TIMER_TICK': setRemainingSeconds(data.remainingSeconds); break;
+          case 'SPEAKER_TICK': setSpeakerRemainingMs(data.remainingMs); break;
+          case 'COUNTS_UPDATE': setCounts({ total: data.totalRegistered, connected: data.connectedPlayers }); break;
+          case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
+          case 'RECOVERY_TOKEN': setRecoveryToken({ studentId: data.studentId, sessionToken: data.sessionToken }); break;
+          case 'ERROR_MSG': setAnswerPending(false); setLastError(data.message); break;
+        }
+      } catch (error) { console.error('[WS message]', error); }
+    };
+    ws.onclose = () => {
+      setIsConnected(false);
+      setIsAuthenticated(false);
+      if (viewRole === 'PLAYER' && localStorage.getItem('mcq_session_token')) setIsReconnecting(true);
+      if (shouldReconnect.current) retryRef.current = setTimeout(connectSocket, 1500);
+    };
+    ws.onerror = () => setIsConnected(false);
   }, [viewRole]);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     connect();
-
-    // Heartbeat every 15s to keep mobile connection alive
-    const pingInterval = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'CLIENT_HEARTBEAT' }));
-      }
+    const heartbeat = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: 'CLIENT_HEARTBEAT' }));
     }, 15000);
-
     return () => {
-      clearInterval(pingInterval);
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (wsRef.current) wsRef.current.close();
+      shouldReconnect.current = false;
+      clearInterval(heartbeat);
+      if (retryRef.current) clearTimeout(retryRef.current);
+      wsRef.current?.close();
     };
   }, [connect]);
 
   const send = useCallback((msg: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
-    }
+    if (wsRef.current?.readyState !== WebSocket.OPEN) { setLastError('Connection lost. Reconnecting…'); return false; }
+    wsRef.current.send(JSON.stringify(msg));
+    return true;
   }, []);
-
   const joinAsPlayer = useCallback((studentId: string, name: string, avatarId: string) => {
-    send({
-      type: 'CLIENT_JOIN',
-      studentId,
-      name,
-      avatarId
-    });
+    send({ type: 'CLIENT_JOIN', studentId, name, avatarId });
   }, [send]);
-
   const submitAnswer = useCallback((selectedOption: string) => {
-    if (!activeQuestion) return;
-    const responseTimeMs = (activeQuestion.time_limit_sec - remainingSeconds) * 1000;
-    send({
-      type: 'CLIENT_SUBMIT_ANSWER',
-      questionId: activeQuestion.id,
-      selectedOption,
-      responseTimeMs: Math.max(500, responseTimeMs)
-    });
-  }, [send, activeQuestion, remainingSeconds]);
+    if (!activeQuestion || !canAnswer || answerPending || myAnswer) return;
+    if (send({ type: 'CLIENT_SUBMIT_ANSWER', questionId: activeQuestion.id, selectedOption })) setAnswerPending(true);
+  }, [send, activeQuestion, canAnswer, answerPending, myAnswer]);
+  const authenticateHost = useCallback((pin: string) => {
+    if (send({ type: 'HOST_AUTH', pin })) sessionStorage.setItem('mcq_host_pin', pin);
+  }, [send]);
+  const reconnectWithToken = useCallback((sessionToken: string) => {
+    localStorage.setItem('mcq_session_token', sessionToken);
+    setIsReconnecting(true);
+    send({ type: 'CLIENT_RECONNECT', sessionToken });
+  }, [send]);
+  const clearError = useCallback(() => setLastError(null), []);
 
-  return {
-    isConnected,
-    role: viewRole,
-    gameState,
-    player,
-    activeQuestion,
-    myAnswer,
-    answerStats,
-    leaderboard,
-    podium,
-    finalists,
-    counts,
-    lastError,
-    remainingSeconds,
-    send,
-    joinAsPlayer,
-    submitAnswer
-  };
+  return { isConnected, isAuthenticated, isReconnecting, answerPending, gameState, player, activeQuestion,
+    myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, cutoff, judgeNames,
+    judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, recoveryToken, lastError, remainingSeconds, speakerRemainingMs,
+    send, joinAsPlayer, submitAnswer, authenticateHost, reconnectWithToken, clearError };
 }

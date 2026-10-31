@@ -11,6 +11,7 @@ export type GameStatus =
   | 'ENDED';
 
 export type QuestionCategory =
+  | 'PRACTICE'
   | 'PLACEMENT_TERMS'
   | 'CAREER_BASICS'
   | 'RESUME'
@@ -18,6 +19,7 @@ export type QuestionCategory =
   | 'CHOOSE WISELY'
   | 'RED FLAG'
   | 'SUDDEN_DEATH';
+
 
 export interface Question {
   id: number;
@@ -33,6 +35,7 @@ export interface Question {
   points: number;
   time_limit_sec: number;
   sort_order: number;
+  is_practice: number;
 }
 
 export interface Player {
@@ -49,6 +52,7 @@ export interface Player {
   is_qualified_level3: number;
   created_at?: string;
   last_ping_at?: string;
+  session_token_hash?: string;
 }
 
 export interface PlayerAnswer {
@@ -85,6 +89,14 @@ export interface GameStateRecord {
   question_duration_sec: number;
   sudden_death_active: number;
   updated_at?: string;
+  deadline_at: number | null;
+  remaining_ms: number;
+  paused_at: number | null;
+  speaker_id: string | null;
+  speaker_deadline_at: number | null;
+  speaker_remaining_ms: number;
+  speaker_running: number;
+  results_verified: number;
 }
 
 // WebSocket Protocols
@@ -98,18 +110,27 @@ export type HostMessageType =
   | 'HOST_AUTH'
   | 'HOST_START_LEVEL'
   | 'HOST_NEXT_QUESTION'
+  | 'HOST_OPEN_QUESTION'
   | 'HOST_PAUSE_TIMER'
   | 'HOST_RESUME_TIMER'
   | 'HOST_EXTEND_TIMER'
   | 'HOST_LOCK_QUESTION'
   | 'HOST_REVEAL_ANSWER'
+  | 'HOST_VOID_QUESTION'
   | 'HOST_SHOW_LEADERBOARD'
   | 'HOST_CUTOFF_L2'
   | 'HOST_CUTOFF_L3'
   | 'HOST_TRIGGER_SUDDEN_DEATH'
   | 'HOST_START_BOWSER_STAGE'
+  | 'HOST_SELECT_SPEAKER'
+  | 'HOST_SPEAKER_START'
+  | 'HOST_SPEAKER_PAUSE'
+  | 'HOST_SPEAKER_RESET'
   | 'HOST_SUBMIT_JUDGE_SCORE'
+  | 'HOST_SUBMIT_FINAL_TIEBREAK'
+  | 'HOST_VERIFY_RESULTS'
   | 'HOST_FINISH_AND_PODIUM'
+  | 'HOST_RECOVER_PLAYER'
   | 'HOST_RESET_GAME';
 
 export type ServerBroadcastType =

@@ -23,6 +23,35 @@ body {
   overflow-x: hidden;
 }
 
+button, select { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
+}
+.event-button {
+  min-height: 44px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  transition: filter 150ms ease, transform 150ms ease;
+}
+.event-button:not(:disabled):hover { filter: brightness(1.16); }
+.event-button:not(:disabled):active { transform: translateY(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .font-pixel {
   font-family: var(--font-pixel);
   letter-spacing: 0.05em;

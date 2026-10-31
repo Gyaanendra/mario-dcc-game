@@ -15,7 +15,7 @@ export const App: React.FC = () => {
   }, []);
 
   // Quick route selector bar when testing locally
-  const showNavHelper = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const showNavHelper = new URLSearchParams(window.location.search).has('dev');
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);

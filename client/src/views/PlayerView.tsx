@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameSocket } from '../utils/socket';
 import { chiptune } from '../audio/chiptune';
 import { MarioSprite, LuigiSprite, CoinSprite, RedFlagGhost } from '../utils/pixelSprites';
@@ -9,11 +9,19 @@ import { Volume2, VolumeX, Wifi, WifiOff, Award, AlertTriangle, ShieldCheck } fr
 export const PlayerView: React.FC = () => {
   const {
     isConnected,
+    isReconnecting,
+    answerPending,
     gameState,
     player,
     activeQuestion,
     myAnswer,
     remainingSeconds,
+    canAnswer,
+    isSpectator,
+    tiePending,
+    lastError,
+    clearError,
+    reconnectWithToken,
     joinAsPlayer,
     submitAnswer
   } = useGameSocket('PLAYER');
@@ -22,7 +30,9 @@ export const PlayerView: React.FC = () => {
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('mario');
   const [isMuted, setIsMuted] = useState(chiptune.getMuted());
-  const [burstTrigger, setBurstTrigger] = useState(false);
+  const [burstTrigger, setBurstTrigger] = useState(0);
+  const [recoveryInput, setRecoveryInput] = useState('');
+  const celebratedQuestionRef = useRef<number | null>(null);
 
   // Play audio cues based on game status
   useEffect(() => {
@@ -32,15 +42,16 @@ export const PlayerView: React.FC = () => {
   }, [remainingSeconds, gameState.game_status, myAnswer]);
 
   useEffect(() => {
-    if (gameState.game_status === 'REVEAL' && myAnswer) {
+    if (gameState.game_status === 'REVEAL' && myAnswer && activeQuestion?.id !== celebratedQuestionRef.current) {
+      celebratedQuestionRef.current = activeQuestion?.id ?? null;
       if (myAnswer.is_correct) {
         chiptune.playPowerUp();
-        setBurstTrigger(true);
+        queueMicrotask(() => setBurstTrigger(value => value + 1));
       } else {
         chiptune.playWrong();
       }
     }
-  }, [gameState.game_status, myAnswer]);
+  }, [gameState.game_status, myAnswer, activeQuestion?.id]);
 
   const toggleSound = () => {
     const muted = chiptune.toggleMute();
@@ -55,14 +66,14 @@ export const PlayerView: React.FC = () => {
   };
 
   const handleSelectOption = (opt: string) => {
-    if (myAnswer || gameState.game_status !== 'QUESTION_ACTIVE') return;
-    chiptune.playCoin();
+    if (myAnswer || answerPending || !canAnswer || gameState.game_status !== 'QUESTION_ACTIVE') return;
+    chiptune.playJump();
     submitAnswer(opt);
-    setBurstTrigger(true);
   };
 
   // 1. Join / Registration Screen
   if (!player) {
+    if (isReconnecting) return <main className="min-h-screen bg-[#0D101D] text-white grid place-items-center p-6 text-center"><div><h1 className="font-pixel text-yellow-300 text-base mb-4">RESTORING YOUR QUEST</h1><p>Reconnecting to the live event and restoring your score…</p></div></main>;
     return (
       <div className="min-h-screen bg-[#0D101D] text-white flex flex-col justify-between p-4 max-w-md mx-auto">
         {/* Header Badge */}
@@ -96,7 +107,7 @@ export const PlayerView: React.FC = () => {
                   : 'bg-zinc-800 border-zinc-600 text-zinc-400'
               }`}
             >
-              MARIO
+              RED EXPLORER
             </button>
             <button
               type="button"
@@ -110,12 +121,13 @@ export const PlayerView: React.FC = () => {
                   : 'bg-zinc-800 border-zinc-600 text-zinc-400'
               }`}
             >
-              LUIGI
+              GREEN EXPLORER
             </button>
           </div>
         </div>
 
         {/* Form Inputs */}
+        {lastError && <div role="alert" className="bg-red-950 border border-red-500 rounded-lg p-3 text-sm text-red-200 flex justify-between gap-2"><span>{lastError}</span><button onClick={clearError} className="underline">Dismiss</button></div>}
         <form onSubmit={handleJoin} className="bg-[#181C2E] p-6 rounded-2xl border-2 border-zinc-700/80 shadow-2xl space-y-4">
           <div>
             <label className="block text-xs font-pixel text-yellow-400 mb-2">STUDENT ID / ROLL NO</label>
@@ -143,11 +155,17 @@ export const PlayerView: React.FC = () => {
 
           <button
             type="submit"
+            disabled={!isConnected}
             className="w-full py-4 mt-2 bg-red-600 hover:bg-red-500 active:scale-95 text-white font-pixel text-sm rounded-xl border-4 border-black pixel-box shadow-lg transition-all flex items-center justify-center gap-2"
           >
-            <span>START QUEST</span>
+            <span>{isConnected ? 'START QUEST' : 'CONNECTING…'}</span>
             <span className="text-yellow-300">▶</span>
           </button>
+        </form>
+        <form onSubmit={e => { e.preventDefault(); if (recoveryInput.trim()) reconnectWithToken(recoveryInput.trim()); }} className="text-center space-y-2">
+          <label htmlFor="recover-token" className="block text-xs text-slate-300">Have a recovery token from the host?</label>
+          <input id="recover-token" value={recoveryInput} onChange={e => setRecoveryInput(e.target.value)} className="w-full bg-[#181C2E] border border-slate-500 rounded-lg p-3 text-sm" placeholder="Paste token here" />
+          <button className="min-h-11 px-4 bg-blue-700 rounded-lg text-sm font-bold">Restore my game</button>
         </form>
 
         {/* Footer info */}
@@ -188,6 +206,7 @@ export const PlayerView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={toggleSound}
+            aria-label={isMuted ? 'Unmute game sounds' : 'Mute game sounds'}
             className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-600 text-zinc-300"
           >
             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
@@ -202,6 +221,8 @@ export const PlayerView: React.FC = () => {
         </div>
       </div>
 
+      {(!isConnected || lastError) && <div role="status" className="bg-red-950 border-y border-red-500 px-4 py-2 text-sm text-red-100">{lastError || 'Connection lost. Your score is saved; reconnecting…'}</div>}
+
       {/* AUDIENCE / SPECTATOR NOTICE IF ELIMINATED */}
       {(isEliminatedLevel2 || isEliminatedLevel3) && (
         <div className="bg-purple-900/60 border-y-2 border-purple-500 px-4 py-2 flex items-center gap-2 text-xs text-purple-200 font-mono">
@@ -209,6 +230,8 @@ export const PlayerView: React.FC = () => {
           <span>Great effort! You are now in <strong>Audience Spectator Mode</strong>. Look up at the big screen!</span>
         </div>
       )}
+      {tiePending && gameState.sudden_death_active === 0 && <div className="bg-amber-950 border-y border-amber-500 px-4 py-2 text-sm text-amber-100">A cut-off tie is being resolved. The host will open a sudden-death question for tied players.</div>}
+      {isSpectator && gameState.sudden_death_active === 1 && !activeQuestion && <div role="status" className="bg-purple-950 border-y border-purple-500 px-4 py-2 text-sm">A sudden-death question is in progress for tied players. Watch the projector.</div>}
 
       {/* 2D RETRO MARIO RUNNER HEADER */}
       <MarioRunnerCanvas
@@ -231,6 +254,7 @@ export const PlayerView: React.FC = () => {
             <p className="text-xs text-zinc-400 font-mono px-4 leading-relaxed">
               You are connected! Keep your phone on and wait for the Host to open Level 1 on the projector.
             </p>
+            <p className="text-sm text-yellow-100">100 coins for a correct answer, plus up to 20 for speed. The practice question earns no coins.</p>
             <div className="inline-block px-3 py-1 bg-green-950 border border-green-500 rounded text-[11px] font-mono text-green-300">
               ● READY FOR QUEST
             </div>
@@ -261,6 +285,8 @@ export const PlayerView: React.FC = () => {
           gameState.game_status === 'PAUSED') &&
           activeQuestion && (
             <div className="space-y-4">
+              {isSpectator && <p role="status" className="rounded-lg border border-purple-400 bg-purple-950 p-3 text-sm">You are watching this question as a spectator.</p>}
+              {activeQuestion.is_practice === 1 && <p className="rounded-lg border border-sky-500 bg-sky-950 p-3 text-sm">Practice question · no coins awarded</p>}
               {/* Category & Timer Bar */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800 border border-zinc-600 rounded text-[11px] font-mono font-bold">
@@ -289,10 +315,10 @@ export const PlayerView: React.FC = () => {
               </div>
 
               {/* Status Banner when locked / submitted */}
-              {myAnswer && gameState.game_status !== 'REVEAL' && (
+              {(myAnswer || answerPending) && gameState.game_status !== 'REVEAL' && (
                 <div className="bg-yellow-500/10 border border-yellow-500/40 p-2.5 rounded-lg text-center">
                   <span className="font-pixel text-xs text-yellow-400">
-                    LOCKED IN: OPTION {myAnswer.selected_option}
+                    {answerPending ? 'SENDING YOUR ANSWER…' : `LOCKED IN: OPTION ${myAnswer?.selected_option}`}
                   </span>
                   <p className="text-[11px] text-zinc-400 font-mono mt-0.5">Waiting for time to expire...</p>
                 </div>
@@ -356,7 +382,7 @@ export const PlayerView: React.FC = () => {
                       <button
                         key={btn.key}
                         type="button"
-                        disabled={!!myAnswer || gameState.game_status !== 'QUESTION_ACTIVE' || isEliminatedLevel2 || isEliminatedLevel3}
+                      disabled={!!myAnswer || answerPending || !canAnswer || !isConnected || gameState.game_status !== 'QUESTION_ACTIVE' || isEliminatedLevel2 || isEliminatedLevel3}
                         onClick={() => handleSelectOption(btn.key)}
                         className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 flex items-start gap-3 disabled:cursor-not-allowed ${dynamicStyle}`}
                       >
