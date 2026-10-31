@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { PlayerView } from './views/PlayerView';
 import { ProjectorView } from './views/ProjectorView';
 import { HostView } from './views/HostView';
+import { LoginView } from './views/LoginView';
 
 const GameView = lazy(() => import('./game/GameView').then(m => ({ default: m.GameView })));
 
@@ -40,16 +40,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen">
-      {/* Route Views */}
       {currentPath === '/projector' || currentPath === '/screen' ? (
         <ProjectorView />
       ) : currentPath === '/host' || currentPath === '/admin' ? (
         <HostView />
       ) : (
-        <PlayerView />
+        <LoginView onGameStart={() => navigateTo('/play')} />
       )}
 
-      {/* Floating dev navigation bar for quick testing */}
       {showNavHelper && (
         <div className="fixed bottom-2 right-2 z-50 flex items-center gap-1.5 p-1.5 bg-black/80 backdrop-blur border border-zinc-700 rounded-xl text-[10px] font-mono shadow-2xl">
           <span className="text-zinc-400 px-1">VIEW:</span>
@@ -59,7 +57,7 @@ export const App: React.FC = () => {
               currentPath === '/' ? 'bg-red-600 text-white font-bold' : 'text-zinc-300 hover:bg-zinc-800'
             }`}
           >
-            Phone
+            Login
           </button>
           <button
             onClick={() => navigateTo('/play')}

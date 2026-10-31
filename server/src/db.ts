@@ -100,6 +100,18 @@ export class DatabaseManager {
         UNIQUE(finalist_id, judge_name),
         FOREIGN KEY(finalist_id) REFERENCES players(id)
       );
+
+      CREATE TABLE IF NOT EXISTS pillar_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id TEXT NOT NULL,
+        pillar_id INTEGER NOT NULL,
+        question_id INTEGER NOT NULL,
+        selected_option TEXT NOT NULL,
+        is_correct INTEGER DEFAULT 0,
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(player_id, pillar_id),
+        FOREIGN KEY(player_id) REFERENCES players(id)
+      );
     `);
 
     // Ensure initial game_state record exists
@@ -155,6 +167,7 @@ export class DatabaseManager {
 
       DELETE FROM player_answers;
       DELETE FROM judge_scores;
+      DELETE FROM pillar_answers;
     `);
   }
 
@@ -400,6 +413,39 @@ export class DatabaseManager {
     this.db.prepare('UPDATE players SET level3_score = ? WHERE id = ?').run(avgScore, score.finalist_id);
 
     return { total, avgScore };
+  }
+
+  // --- Pillar Answer Methods ---
+  submitPillarAnswer(playerId: string, pillarId: number, questionId: number, selectedOption: string, isCorrect: boolean) {
+    const existing = this.db.prepare('SELECT id FROM pillar_answers WHERE player_id = ? AND pillar_id = ?').get(playerId, pillarId);
+    if (existing) return null;
+    this.db.prepare(
+      'INSERT INTO pillar_answers (player_id, pillar_id, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?)'
+    ).run(playerId, pillarId, questionId, selectedOption, isCorrect ? 1 : 0);
+    return { playerId, pillarId, questionId, selectedOption, isCorrect };
+  }
+
+  getPillarAnswersForPlayer(playerId: string) {
+    return this.db.prepare('SELECT * FROM pillar_answers WHERE player_id = ? ORDER BY pillar_id').all(playerId) as unknown as any[];
+  }
+
+  getAllPillarAnswers() {
+    return this.db.prepare(`
+      SELECT pa.*, p.name as player_name, p.student_id
+      FROM pillar_answers pa
+      JOIN players p ON pa.player_id = p.id
+      ORDER BY pa.submitted_at DESC
+    `).all() as unknown as any[];
+  }
+
+  getAllPlayersForHost() {
+    return this.db.prepare(`
+      SELECT id, student_id, name, avatar_id, is_connected,
+             level1_score, level2_score, level3_score,
+             is_qualified_level2, is_qualified_level3,
+             created_at, last_ping_at
+      FROM players ORDER BY created_at DESC
+    `).all() as unknown as any[];
   }
 
   getFinalistPodium(): { rank: number; name: string; student_id: string; avatar_id: string; total_score: number; coins: number }[] {

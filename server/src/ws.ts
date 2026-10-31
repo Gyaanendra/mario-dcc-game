@@ -36,6 +36,10 @@ export function handleWebSocketConnection(socket: WebSocket, req: any) {
 
         // Send current game state sync
         socket.send(JSON.stringify(gameManager.getPlayerSyncPayload(player.id)));
+
+        // Notify hosts of updated player list
+        const allPlayers = dbManager.getAllPlayersForHost();
+        gameManager.broadcastToHosts({ type: 'PLAYERS_UPDATE', players: allPlayers });
         return;
       }
 
@@ -95,6 +99,25 @@ export function handleWebSocketConnection(socket: WebSocket, req: any) {
         const stats = dbManager.getAnswerStats(questionId);
         gameManager.broadcastToHosts({ type: 'LIVE_SUBMISSION_STATS', stats });
         gameManager.broadcastToProjectors({ type: 'LIVE_SUBMISSION_STATS', stats });
+        return;
+      }
+
+      if (type === 'CLIENT_SUBMIT_PILLAR_ANSWER') {
+        if (!boundPlayerId) {
+          socket.send(JSON.stringify({ type: 'ERROR_MSG', message: 'Not joined' }));
+          return;
+        }
+        const { pillarId, questionId, selectedOption, isCorrect } = data;
+        const result = dbManager.submitPillarAnswer(boundPlayerId, pillarId, questionId, selectedOption, !!isCorrect);
+        if (!result) {
+          socket.send(JSON.stringify({ type: 'PILLAR_ALREADY_ANSWERED', pillarId }));
+        } else {
+          socket.send(JSON.stringify({ type: 'PILLAR_ANSWER_SAVED', pillarId, isCorrect: !!isCorrect }));
+          const pillarAnswers = dbManager.getAllPillarAnswers();
+          const allPlayers = dbManager.getAllPlayersForHost();
+          gameManager.broadcastToHosts({ type: 'PILLAR_ANSWERS_UPDATE', pillarAnswers });
+          gameManager.broadcastToHosts({ type: 'PLAYERS_UPDATE', players: allPlayers });
+        }
         return;
       }
 

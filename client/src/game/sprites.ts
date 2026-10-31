@@ -1136,6 +1136,64 @@ export function drawKoopaShell(ctx: CanvasRenderingContext2D, x: number, y: numb
   ctx.fillRect(x + 2 * s, y + 10 * s, 10 * s, 1 * s);
 }
 
+export function drawGoldenPillar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, glowPhase: number, triggered: boolean) {
+  const glow = Math.sin(glowPhase * 0.05) * 0.3 + 0.7;
+
+  ctx.save();
+  ctx.globalAlpha = glow * 0.3;
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  ctx.globalAlpha = 1;
+
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, triggered ? '#8B7355' : '#B8860B');
+  grad.addColorStop(0.3, triggered ? '#C4A36A' : '#FFD700');
+  grad.addColorStop(0.5, triggered ? '#DBC89A' : '#FFEC80');
+  grad.addColorStop(0.7, triggered ? '#C4A36A' : '#FFD700');
+  grad.addColorStop(1, triggered ? '#8B7355' : '#B8860B');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = triggered ? '#A08050' : '#FFE44D';
+  ctx.fillRect(x - 4, y, w + 8, 8);
+  ctx.fillRect(x - 2, y + 8, w + 4, 4);
+
+  ctx.fillStyle = triggered ? '#A08050' : '#FFE44D';
+  ctx.fillRect(x - 4, y + h - 8, w + 8, 8);
+  ctx.fillRect(x - 2, y + h - 12, w + 4, 4);
+
+  if (!triggered) {
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', x + w / 2, y + h / 2);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  } else {
+    ctx.fillStyle = '#90EE90';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✓', x + w / 2, y + h / 2);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  if (!triggered) {
+    for (let i = 0; i < 3; i++) {
+      const sparkleY = y + (h * (i + 1)) / 4;
+      const sparkleX = x + w / 2 + Math.sin(glowPhase * 0.03 + i * 2) * (w / 2 + 8);
+      const sparkleSize = 2 + Math.sin(glowPhase * 0.07 + i) * 1;
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(sparkleX - sparkleSize / 2, sparkleY - sparkleSize / 2, sparkleSize, sparkleSize);
+    }
+  }
+
+  ctx.restore();
+}
+
 export function drawParticle(ctx: CanvasRenderingContext2D, x: number, y: number, pt: Particle) {
   const alpha = Math.max(0, pt.life / pt.maxLife);
   ctx.globalAlpha = alpha;

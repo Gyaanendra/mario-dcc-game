@@ -1,7 +1,7 @@
 import type {
   PlayerEntity, EnemyEntity, BlockEntity, CoinEntity, PipeEntity,
   MushroomEntity, MovingPlatform, Particle, FlagPole, Checkpoint,
-  GameCamera, InputState, GameState, LevelData, AABB, Direction,
+  GoldenPillar, GameCamera, InputState, GameState, LevelData, AABB, Direction,
 } from './types';
 import { TileType } from './types';
 import { TILE, PHYSICS, COLORS, DIMENSIONS, createLevel1 } from './config';
@@ -14,6 +14,7 @@ import {
   drawPlayer, drawFlagPole as drawFlagPoleSprite,
   drawCheckpoint as drawCheckpointSprite,
   drawParticle,
+  drawGoldenPillar,
 } from './sprites';
 import { gameAudio } from './audio';
 
@@ -33,6 +34,8 @@ export class GameEngine {
   private particles: Particle[] = [];
   private flagPole: FlagPole | null = null;
   private checkpoints: Checkpoint[] = [];
+  private pillars: GoldenPillar[] = [];
+  private activePillarId: number | null = null;
 
   private camera!: GameCamera;
   private input: InputState = { left: false, right: false, jump: false, jumpPressed: false, pause: false };
@@ -226,6 +229,16 @@ export class GameEngine {
       pos: { x: cp.x, y: cp.y }, activated: false,
     }));
 
+    this.pillars = (this.level.pillars || []).map(p => ({
+      pos: { x: p.x, y: p.y },
+      w: 48,
+      h: 128,
+      id: p.id,
+      triggered: false,
+      glowPhase: 0,
+    }));
+    this.activePillarId = null;
+
     this.camera = {
       x: 0, y: 0, targetX: 0, targetY: 0,
       worldWidth: this.level.width, worldHeight: this.level.height,
@@ -282,6 +295,7 @@ export class GameEngine {
       this.updateCamera();
       this.updateTimer(dt);
       this.checkLevelComplete();
+      this.updatePillars();
     }
 
     this.render();
@@ -340,6 +354,7 @@ export class GameEngine {
     this.resolveTileCollisionX(p);
     this.resolveBlockCollisionX(p);
     this.resolvePipeCollisionX(p);
+    this.resolvePillarCollisionX(p);
 
     // move Y then resolve
     const wasInAir = !p.grounded;
@@ -348,6 +363,7 @@ export class GameEngine {
     this.resolveTileCollisionY(p);
     this.resolveBlockCollisionY(p);
     this.resolvePipeCollisionY(p);
+    this.resolvePillarCollisionY(p);
     this.resolveMovingPlatformCollision(p);
 
     if (p.grounded && wasInAir && p.vel.y >= 0) {
@@ -367,6 +383,12 @@ export class GameEngine {
     this.checkMushroomPickup();
     // checkpoint
     this.checkCheckpoints();
+    // pillar collision
+    const hitPillar = this.checkPillarCollision();
+    if (hitPillar && !this.activePillarId) {
+      this.activePillarId = hitPillar.id;
+      this.gameState.paused = true;
+    }
     // flagpole
     this.checkFlagPole();
 
@@ -982,6 +1004,67 @@ export class GameEngine {
     }
   }
 
+  // ── golden pillars ──────────────────────────────────────────
+  private updatePillars() {
+    for (const pillar of this.pillars) {
+      pillar.glowPhase++;
+    }
+  }
+
+  private checkPillarCollision(): GoldenPillar | null {
+    const p = this.player;
+    const pBox = { x: p.pos.x, y: p.pos.y, w: p.w, h: p.h };
+    for (const pillar of this.pillars) {
+      if (pillar.triggered) continue;
+      const pillarBox = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
+      if (this.aabbOverlap(pBox, pillarBox)) {
+        return pillar;
+      }
+    }
+    return null;
+  }
+
+  private resolvePillarCollisionX(ent: { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number }) {
+    for (const pillar of this.pillars) {
+      const pBox: AABB = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
+      const eBox = this.entityAABB(ent);
+      if (!this.aabbOverlap(eBox, pBox)) continue;
+      if (ent.vel.x > 0) { ent.pos.x = pillar.pos.x - ent.w; ent.vel.x = 0; }
+      else if (ent.vel.x < 0) { ent.pos.x = pillar.pos.x + pillar.w; ent.vel.x = 0; }
+    }
+  }
+
+  private resolvePillarCollisionY(ent: { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number; grounded?: boolean }) {
+    for (const pillar of this.pillars) {
+      const pBox: AABB = { x: pillar.pos.x, y: pillar.pos.y, w: pillar.w, h: pillar.h };
+      const eBox = { x: ent.pos.x, y: ent.pos.y, w: (ent as any).w, h: (ent as any).h };
+      if (!this.aabbOverlap(eBox, pBox)) continue;
+      if (ent.vel.y > 0) {
+        ent.pos.y = pillar.pos.y - (ent as any).h;
+        ent.vel.y = 0;
+        if ('grounded' in ent) (ent as any).grounded = true;
+      } else if (ent.vel.y < 0) {
+        ent.pos.y = pillar.pos.y + pillar.h;
+        ent.vel.y = 0;
+      }
+    }
+  }
+
+  getActivePillarId(): number | null {
+    return this.activePillarId;
+  }
+
+  markPillarAnswered(pillarId: number) {
+    const pillar = this.pillars.find(p => p.id === pillarId);
+    if (pillar) pillar.triggered = true;
+    this.activePillarId = null;
+    this.gameState.paused = false;
+  }
+
+  getPillarTriggeredState(): boolean[] {
+    return this.pillars.map(p => p.triggered);
+  }
+
   // ── spawn helpers ───────────────────────────────────────────
   private spawnCoinPop(x: number, y: number) {
     this.coins.push({
@@ -1153,6 +1236,14 @@ export class GameEngine {
     // 16. CHECKPOINTS
     for (const cp of this.checkpoints) {
       drawCheckpointSprite(ctx, wx(cp.pos.x), wy(cp.pos.y), cp.activated, this.tick);
+    }
+
+    // 16.5. GOLDEN PILLARS
+    for (const pillar of this.pillars) {
+      const px = wx(pillar.pos.x);
+      const py = wy(pillar.pos.y);
+      if (px < -100 || px > cw + 100) continue;
+      drawGoldenPillar(ctx, px, py, pillar.w, pillar.h, pillar.glowPhase, pillar.triggered);
     }
 
     // 17. HUD

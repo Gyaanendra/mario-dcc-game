@@ -137,6 +137,15 @@ export interface Checkpoint {
   activated: boolean;
 }
 
+export interface GoldenPillar {
+  pos: Vec2;
+  w: number;
+  h: number;
+  id: number;
+  triggered: boolean;
+  glowPhase: number;
+}
+
 export interface GameCamera {
   x: number;
   y: number;
@@ -169,6 +178,7 @@ export interface LevelData {
   movingPlatforms: Array<{ x: number; y: number; w: number; startX: number; endX: number; speed: number }>;
   flagPole?: { x: number; y: number; h: number };
   checkpoints: Array<{ x: number; y: number }>;
+  pillars: Array<{ id: number; x: number; y: number }>;
 }
 
 export interface GameState {
