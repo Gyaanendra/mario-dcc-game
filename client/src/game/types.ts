@@ -90,6 +90,7 @@ export interface PipeEntity {
   pos: Vec2;
   w: number;
   h: number;
+  colorIndex: number;
 }
 
 export interface MushroomEntity {
@@ -179,13 +180,13 @@ export interface GameState {
   world: string;
 }
 
-export enum TileType {
-  EMPTY = 0,
-  GROUND = 1,
-  GROUND_TOP = 2,
-  BRICK = 3,
-  GROUND_LEFT = 4,
-  GROUND_RIGHT = 5,
-  GROUND_DEEP = 6,
-  PLATFORM = 7,
-}
+export const TileType = {
+  EMPTY: 0,
+  GROUND: 1,
+  GROUND_TOP: 2,
+  BRICK: 3,
+  GROUND_LEFT: 4,
+  GROUND_RIGHT: 5,
+  GROUND_DEEP: 6,
+  PLATFORM: 7,
+} as const;

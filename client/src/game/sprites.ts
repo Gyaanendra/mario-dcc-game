@@ -1,5 +1,5 @@
 import { COLORS, TILE } from './config';
-import type { PlayerState, Direction, EnemyEntity, Particle } from './types';
+import type { PlayerState, Direction, EnemyEntity, Particle, PipeEntity, BlockEntity } from './types';
 
 const p = 2; // pixel scale for character sprites
 
@@ -646,37 +646,36 @@ export function drawCoin(
 // 9. PIPE
 // ---------------------------------------------------------------------------
 
-export function drawPipe(ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
+const PIPE_PALETTES = [
+  { main: '#00A800', light: '#68FF68', dark: '#004D00' },
+  { main: '#D82020', light: '#FF6868', dark: '#6D0000' },
+  { main: '#D8A800', light: '#FFE868', dark: '#6D5400' },
+];
+
+export function drawPipe(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, colorIndex: number = 0) {
+  const pal = PIPE_PALETTES[colorIndex] || PIPE_PALETTES[0];
   const rimH = 16;
   const rimW = 64;
   const stemW = 48;
   const stemOff = (rimW - stemW) / 2;
 
-  // Rim black outline
   ctx.fillStyle = '#000';
   ctx.fillRect(x, y, rimW, rimH);
-  // Rim fill
-  ctx.fillStyle = COLORS.pipeGreen;
+  ctx.fillStyle = pal.main;
   ctx.fillRect(x + 2, y + 2, rimW - 4, rimH - 4);
-  // Rim highlight
-  ctx.fillStyle = COLORS.pipeLight;
+  ctx.fillStyle = pal.light;
   ctx.fillRect(x + 2, y + 2, rimW - 4, 2);
   ctx.fillRect(x + 2, y + 2, 6, rimH - 4);
-  // Rim dark side
-  ctx.fillStyle = COLORS.pipeDark;
+  ctx.fillStyle = pal.dark;
   ctx.fillRect(x + rimW - 8, y + 2, 6, rimH - 4);
 
-  // Stem black outline
   ctx.fillStyle = '#000';
   ctx.fillRect(x + stemOff, y + rimH, stemW, h - rimH);
-  // Stem fill
-  ctx.fillStyle = COLORS.pipeGreen;
+  ctx.fillStyle = pal.main;
   ctx.fillRect(x + stemOff + 2, y + rimH, stemW - 4, h - rimH);
-  // Stem highlight
-  ctx.fillStyle = COLORS.pipeLight;
+  ctx.fillStyle = pal.light;
   ctx.fillRect(x + stemOff + 2, y + rimH, 6, h - rimH);
-  // Stem dark
-  ctx.fillStyle = COLORS.pipeDark;
+  ctx.fillStyle = pal.dark;
   ctx.fillRect(x + stemOff + stemW - 8, y + rimH, 6, h - rimH);
 }
 

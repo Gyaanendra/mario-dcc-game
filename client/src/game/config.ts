@@ -88,7 +88,6 @@ export const DIMENSIONS = {
 
 const T = TileType;
 const _ = T.EMPTY;
-const G = T.GROUND;
 const g = T.GROUND_TOP;
 const B = T.BRICK;
 const D = T.GROUND_DEEP;
@@ -103,14 +102,8 @@ export function createLevel1(): LevelData {
     tiles.push(new Array(cols).fill(_));
   }
 
-  // ground: rows 13-14 (bottom two rows)
+  // ground: rows 13-14 (bottom two rows) — no gaps, fully solid
   for (let c = 0; c < cols; c++) {
-    // gaps
-    if ((c >= 69 && c <= 71) ||
-        (c >= 86 && c <= 88) ||
-        (c >= 153 && c <= 156)) {
-      continue;
-    }
     tiles[13][c] = g;
     tiles[14][c] = D;
   }
@@ -134,6 +127,51 @@ export function createLevel1(): LevelData {
   for (let c = 116; c <= 118; c++) { tiles[7][c] = P; }
   for (let c = 160; c <= 165; c++) { tiles[9][c] = P; }
   for (let c = 195; c <= 200; c++) { tiles[10][c] = P; }
+
+  // ── parkour sections ──────────────────────────────────────
+
+  // parkour 1 (cols 32-42): ascending steps
+  tiles[11][33] = B; tiles[11][34] = B;
+  tiles[10][36] = B; tiles[10][37] = B;
+  tiles[9][39] = B;  tiles[9][40] = B;
+  tiles[8][42] = B;
+
+  // parkour 2 (cols 60-68): zigzag platforms
+  tiles[10][60] = B; tiles[10][61] = B;
+  tiles[8][63] = B;  tiles[8][64] = B;
+  tiles[10][66] = B; tiles[10][67] = B;
+
+  // parkour 3 (cols 73-80): floating island chain
+  tiles[10][73] = B; tiles[10][74] = B; tiles[10][75] = B;
+  tiles[8][77] = B;  tiles[8][78] = B;
+  tiles[6][80] = B;
+
+  // parkour 4 (cols 96-104): multi-level bridge
+  for (let c = 96; c <= 99; c++) { tiles[10][c] = B; }
+  for (let c = 101; c <= 104; c++) { tiles[8][c] = B; }
+
+  // parkour 5 (cols 140-150): descending staircase
+  tiles[7][140] = B;
+  tiles[8][142] = B; tiles[8][143] = B;
+  tiles[9][145] = B; tiles[9][146] = B;
+  tiles[10][148] = B; tiles[10][149] = B; tiles[10][150] = B;
+
+  // parkour 6 (cols 168-175): alternating heights
+  tiles[11][168] = B;
+  tiles[9][170] = B;
+  tiles[11][172] = B;
+  tiles[9][174] = B;
+
+  // parkour 7 (cols 190-194): tight jumps at height
+  tiles[9][190] = B;
+  tiles[7][192] = B;
+  tiles[9][194] = B;
+
+  // parkour 8 (cols 205-215): final gauntlet
+  tiles[10][205] = B; tiles[10][206] = B;
+  tiles[8][208] = B;  tiles[8][209] = B;
+  tiles[6][211] = B;  tiles[6][212] = B;
+  tiles[8][214] = B;  tiles[8][215] = B;
 
   return {
     width: cols * TILE,

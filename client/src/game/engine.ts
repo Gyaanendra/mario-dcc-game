@@ -15,7 +15,7 @@ import {
   drawCheckpoint as drawCheckpointSprite,
   drawParticle,
 } from './sprites';
-import { chiptune } from '../audio/chiptune';
+import { gameAudio } from './audio';
 
 interface DecorItem { x: number; y: number; size: number; }
 
@@ -51,8 +51,7 @@ export class GameEngine {
   private nearHills: DecorItem[] = [];
   private bushes: DecorItem[] = [];
 
-  private scaleX = 1;
-  private scaleY = 1;
+  private levelRng = 0;
 
   private boundKeyDown: (e: KeyboardEvent) => void;
   private boundKeyUp: (e: KeyboardEvent) => void;
@@ -94,8 +93,6 @@ export class GameEngine {
       this.camera.viewWidth = logicalW;
       this.camera.viewHeight = logicalH;
     }
-    this.scaleX = logicalW / 1280;
-    this.scaleY = logicalH / 720;
   }
 
   togglePause() {
@@ -204,8 +201,11 @@ export class GameEngine {
       pos: { x: c.x, y: c.y }, collected: false, animTimer: 0, popVel: 0, popping: false,
     }));
 
+    this.levelRng = 7;
+    const nextRng = () => { this.levelRng = (this.levelRng * 16807 + 0) % 2147483647; return this.levelRng; };
     this.pipes = this.level.pipes.map(p => ({
       pos: { x: p.x, y: p.y }, w: DIMENSIONS.pipeWidth, h: p.h,
+      colorIndex: nextRng() % 3,
     }));
 
     this.mushrooms = [];
@@ -292,13 +292,7 @@ export class GameEngine {
   private updatePlayer() {
     const p = this.player;
     if (p.state === 'dead') {
-      p.deadTimer--;
-      p.vel.y += PHYSICS.gravity;
-      p.pos.y += p.vel.y;
-      if (p.deadTimer <= 0) {
-        if (p.lives > 0) this.respawn();
-        else this.gameState.gameOver = true;
-      }
+      this.respawn();
       return;
     }
     if (p.state === 'victory') {
@@ -330,7 +324,7 @@ export class GameEngine {
       p.vel.y = PHYSICS.playerJumpForce;
       p.grounded = false;
       this.jumpHoldFrames = 0;
-      chiptune.playJump();
+      gameAudio.jump();
     }
     if (this.input.jump && !p.grounded && p.vel.y < 0 && this.jumpHoldFrames < PHYSICS.playerMaxJumpTime) {
       p.vel.y += PHYSICS.playerJumpHold;
@@ -363,7 +357,7 @@ export class GameEngine {
     // world bounds
     if (p.pos.x < 0) { p.pos.x = 0; p.vel.x = 0; }
     if (p.pos.x > this.level.width - p.w) { p.pos.x = this.level.width - p.w; p.vel.x = 0; }
-    if (p.pos.y > this.level.height + 64) { this.killPlayer(); return; }
+    if (p.pos.y > this.level.height + 64) { this.respawn(); return; }
 
     // enemy collision
     this.checkEnemyCollision();
@@ -399,27 +393,15 @@ export class GameEngine {
     p.state = 'idle';
   }
 
-  private killPlayer() {
-    const p = this.player;
-    if (p.invulnTimer > 0 || p.state === 'dead') return;
-    p.lives--;
-    p.state = 'dead';
-    p.vel = { x: 0, y: PHYSICS.playerJumpForce };
-    p.deadTimer = 90;
-    chiptune.playWrong();
-  }
-
   private damagePlayer() {
     const p = this.player;
-    if (p.invulnTimer > 0 || p.state === 'dead') return;
+    if (p.invulnTimer > 0) return;
     if (p.powerLevel > 0) {
       p.powerLevel--;
       p.h = DIMENSIONS.player.h;
-      p.invulnTimer = 90;
-      chiptune.playWrong();
-      return;
     }
-    this.killPlayer();
+    p.invulnTimer = 90;
+    gameAudio.bump();
   }
 
   private respawn() {
@@ -508,19 +490,19 @@ export class GameEngine {
   }
 
   private hitBlock(b: BlockEntity) {
-    if (b.type === 'question' && !b.hit) {
-      b.hit = true;
+    if (b.bounceTimer > 0) return;
+
+    if (b.type === 'question') {
       b.bounceTimer = 8;
-      if (b.contents === 'coin') {
+      const reward = Math.random() < 0.5 ? 1 : 2;
+      for (let i = 0; i < reward; i++) {
         this.player.coins++;
         this.player.score += 200;
-        this.spawnCoinPop(b.pos.x + 8, b.pos.y - 16);
-        chiptune.playCoin();
-      } else if (b.contents === 'mushroom') {
-        this.spawnMushroom(b.pos.x + 2, b.pos.y);
-        chiptune.playPowerUp();
+        this.spawnCoinPop(b.pos.x + 8 + i * 10, b.pos.y - 16 - i * 8);
       }
-      // kill enemies standing on top
+      gameAudio.blockHit();
+      gameAudio.coin();
+      // bump enemies standing on top
       for (const e of this.enemies) {
         if (!e.alive) continue;
         if (e.pos.x + e.w > b.pos.x && e.pos.x < b.pos.x + b.w &&
@@ -531,23 +513,19 @@ export class GameEngine {
           this.spawnScoreParticles(e.pos.x, e.pos.y);
         }
       }
-    } else if (b.type === 'brick' && !b.hit) {
-      if (this.player.powerLevel > 0) {
-        b.hit = true;
-        this.spawnBrickDebris(b.pos.x, b.pos.y);
-        chiptune.playWrong();
-        // kill enemies on top
-        for (const e of this.enemies) {
-          if (!e.alive) continue;
-          if (e.pos.x + e.w > b.pos.x && e.pos.x < b.pos.x + b.w &&
-              Math.abs((e.pos.y + e.h) - b.pos.y) < 4) {
-            e.alive = false;
-            e.deathTimer = 30;
-            this.player.score += 100;
-          }
+    } else if (b.type === 'brick') {
+      b.bounceTimer = 8;
+      gameAudio.bump();
+      // bump enemies on top
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        if (e.pos.x + e.w > b.pos.x && e.pos.x < b.pos.x + b.w &&
+            Math.abs((e.pos.y + e.h) - b.pos.y) < 4) {
+          e.alive = false;
+          e.deathTimer = 30;
+          this.player.score += 100;
+          this.spawnScoreParticles(e.pos.x, e.pos.y);
         }
-      } else {
-        b.bounceTimer = 8;
       }
     }
   }
@@ -621,14 +599,13 @@ export class GameEngine {
 
   // ── timer ───────────────────────────────────────────────────
   private updateTimer(dt: number) {
-    if (this.gameState.levelComplete || this.player.state === 'dead') return;
+    if (this.gameState.levelComplete) return;
     this.timerAccum += dt;
     if (this.timerAccum >= 60) {
       this.timerAccum -= 60;
       this.gameState.timer--;
       if (this.gameState.timer <= 0) {
         this.gameState.timer = 0;
-        this.killPlayer();
       }
     }
   }
@@ -721,8 +698,7 @@ export class GameEngine {
 
   private checkBlockHitAbove(wx: number, wy: number) {
     for (const b of this.blocks) {
-      if (b.hit && b.type === 'question') continue;
-      if (b.hit && b.type === 'brick') continue;
+      if (b.bounceTimer > 0) continue;
       const bBox: AABB = { x: b.pos.x, y: b.pos.y, w: b.w, h: b.h };
       if (wx >= bBox.x && wx <= bBox.x + bBox.w && wy >= bBox.y && wy <= bBox.y + bBox.h) {
         this.hitBlock(b);
@@ -734,7 +710,6 @@ export class GameEngine {
   // block collision for player movement
   private resolveBlockCollisionX(ent: { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number }) {
     for (const b of this.blocks) {
-      if (b.hit && b.type === 'brick') continue; // broken bricks are gone
       const bBox: AABB = { x: b.pos.x, y: b.pos.y, w: b.w, h: b.h };
       const eBox = this.entityAABB(ent);
       if (!this.aabbOverlap(eBox, bBox)) continue;
@@ -750,7 +725,6 @@ export class GameEngine {
 
   private resolveBlockCollisionY(ent: PlayerEntity | { pos: { x: number; y: number }; vel: { x: number; y: number }; w: number; h: number; grounded?: boolean }) {
     for (const b of this.blocks) {
-      if (b.hit && b.type === 'brick') continue;
       const bBox: AABB = { x: b.pos.x, y: b.pos.y, w: b.w, h: b.h };
       const eBox = { x: ent.pos.x, y: ent.pos.y, w: (ent as any).w, h: (ent as any).h };
       if (!this.aabbOverlap(eBox, bBox)) continue;
@@ -892,7 +866,7 @@ export class GameEngine {
   // ── enemy interaction ───────────────────────────────────────
   private checkEnemyCollision() {
     const p = this.player;
-    if (p.invulnTimer > 0 || p.state === 'dead') return;
+    if (p.invulnTimer > 0) return;
 
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -917,19 +891,19 @@ export class GameEngine {
           e.vel.x = 0;
           p.vel.y = PHYSICS.playerJumpForce * 0.5;
           p.score += 100;
-          chiptune.playCoin();
+          gameAudio.stomp();
         } else if (e.type === 'koopa' && e.inShell && !e.shellMoving) {
           e.shellMoving = true;
           e.vel.x = (p.pos.x < e.pos.x ? 1 : -1) * PHYSICS.koopaShellSpeed;
           p.vel.y = PHYSICS.playerJumpForce * 0.5;
           p.score += 200;
-          chiptune.playCoin();
+          gameAudio.stomp();
         } else {
           e.alive = false;
           e.deathTimer = 30;
           p.vel.y = PHYSICS.playerJumpForce * 0.5;
           p.score += 100;
-          chiptune.playCoin();
+          gameAudio.stomp();
           this.spawnScoreParticles(e.pos.x, e.pos.y);
         }
       } else {
@@ -956,7 +930,7 @@ export class GameEngine {
         c.collected = true;
         p.coins++;
         p.score += 200;
-        chiptune.playCoin();
+        gameAudio.coin();
         this.spawnCoinSparkle(c.pos.x, c.pos.y);
       }
     }
@@ -973,7 +947,7 @@ export class GameEngine {
         p.powerLevel = Math.min(p.powerLevel + 1, 2);
         if (p.powerLevel >= 1) { p.h = DIMENSIONS.playerBig.h; }
         p.score += 1000;
-        chiptune.playPowerUp();
+        gameAudio.powerup();
         this.spawnScoreParticles(m.pos.x, m.pos.y);
       }
     }
@@ -987,7 +961,7 @@ export class GameEngine {
       if (Math.abs(p.pos.x - cp.pos.x) < TILE && Math.abs(p.pos.y - cp.pos.y) < TILE * 2) {
         cp.activated = true;
         this.lastCheckpointPos = { x: cp.pos.x, y: cp.pos.y - TILE };
-        chiptune.playCoin();
+        gameAudio.coin();
       }
     }
   }
@@ -1003,7 +977,7 @@ export class GameEngine {
       p.vel = { x: 0, y: 0 };
       p.victoryTimer = 120;
       p.score += 5000;
-      chiptune.playVictory();
+      gameAudio.victory();
       this.spawnCelebrationParticles(fp.pos.x, fp.pos.y);
     }
   }
@@ -1012,14 +986,6 @@ export class GameEngine {
   private spawnCoinPop(x: number, y: number) {
     this.coins.push({
       pos: { x, y }, collected: false, animTimer: 0, popVel: -8, popping: true,
-    });
-  }
-
-  private spawnMushroom(x: number, y: number) {
-    this.mushrooms.push({
-      pos: { x, y }, vel: { x: 0, y: 0 },
-      w: DIMENSIONS.mushroom.w, h: DIMENSIONS.mushroom.h,
-      active: true, emerging: true, emergeTimer: 20, sourceY: y,
     });
   }
 
@@ -1039,18 +1005,6 @@ export class GameEngine {
         x: x + 8, y: y + 8,
         vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2,
         color: i % 2 === 0 ? COLORS.coinGold : '#FFF', life: 20, maxLife: 20, size: 2,
-      });
-    }
-  }
-
-  private spawnBrickDebris(x: number, y: number) {
-    const cols = [COLORS.brickOrange, COLORS.brickDark, COLORS.brickLight];
-    for (let i = 0; i < 8; i++) {
-      this.particles.push({
-        x: x + Math.random() * TILE, y: y + Math.random() * TILE,
-        vx: (Math.random() - 0.5) * 6, vy: -3 - Math.random() * 5,
-        color: cols[Math.floor(Math.random() * cols.length)],
-        life: 40, maxLife: 40, size: 5,
       });
     }
   }
@@ -1077,7 +1031,6 @@ export class GameEngine {
 
     // compute view scale: map logical 1280×720 (level height is 15*32=480) to canvas
     const logicalW = cam.viewWidth;
-    const logicalH = cam.viewHeight;
 
     // 1. SKY
     drawSky(ctx, cw, ch);
@@ -1134,17 +1087,16 @@ export class GameEngine {
 
     // 7. PIPES
     for (const pipe of this.pipes) {
-      drawPipe(ctx, wx(pipe.pos.x), wy(pipe.pos.y), pipe.h);
+      drawPipe(ctx, wx(pipe.pos.x), wy(pipe.pos.y), pipe.h, pipe.colorIndex);
     }
 
     // 8. BLOCKS
     for (const b of this.blocks) {
-      if (b.hit && b.type === 'brick') continue;
       const bounceOff = b.bounceTimer > 4 ? -6 : b.bounceTimer > 0 ? -3 : 0;
-      if (b.type === 'brick' && !b.hit) {
+      if (b.type === 'brick') {
         drawBrickBlock(ctx, wx(b.pos.x), wy(b.pos.y) + bounceOff);
       } else {
-        drawQuestionBlock(ctx, wx(b.pos.x), wy(b.pos.y) + bounceOff, b.hit, bounceOff, this.tick);
+        drawQuestionBlock(ctx, wx(b.pos.x), wy(b.pos.y) + bounceOff, false, bounceOff, this.tick);
       }
     }
 
@@ -1175,7 +1127,6 @@ export class GameEngine {
       const ex = wx(e.pos.x);
       const ey = wy(e.pos.y);
       if (ex < -64 || ex > cw + 64) continue;
-      const flatten = !e.alive;
       if (e.type === 'goomba') drawGoomba(ctx, ex, ey, e.animFrame, e.alive, e.deathTimer);
       else if (e.type === 'koopa' && e.inShell) drawKoopaShell(ctx, ex, ey, e.w, e.h);
       else if (e.type === 'koopa') drawKoopa(ctx, ex, ey, e.direction, e.animFrame, !!e.inShell, !!e.shellMoving);

@@ -186,4 +186,28 @@ export const gameAudio = {
     playNote(523, 0.1, 'square', 0.1);
     playNote(262, 0.1, 'square', 0.1, 0.1);
   },
+
+  landing() {
+    if (muted) return;
+    playNote(120, 0.06, 'triangle', 0.08);
+  },
+
+  blockHit() {
+    if (muted) return;
+    const c = getCtx();
+    if (!c) return;
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(260, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.04);
+    osc.frequency.exponentialRampToValueAtTime(180, now + 0.1);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  },
 };

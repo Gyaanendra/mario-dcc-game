@@ -13,7 +13,7 @@ export const GameView: React.FC = () => {
   const [isLevelComplete, setIsLevelComplete] = useState(false);
   const [showLandscapePrompt, setShowLandscapePrompt] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [, setIsFullscreen] = useState(false);
 
   const checkMobile = useCallback(() => {
     const mobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
