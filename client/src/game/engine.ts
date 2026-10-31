@@ -336,8 +336,8 @@ export class GameEngine {
     if (p.landTimer > 0) p.landTimer--;
 
     // horizontal input
-    const maxSpeed = Math.abs(p.vel.x) > PHYSICS.playerWalkSpeed
-      ? PHYSICS.playerRunSpeed : PHYSICS.playerWalkSpeed;
+    // The walk-speed clamp prevented acceleration from ever reaching run speed.
+    const maxSpeed = PHYSICS.playerRunSpeed;
     if (this.input.left) {
       p.vel.x -= PHYSICS.playerAccel;
       if (p.vel.x < -maxSpeed) p.vel.x = -maxSpeed;
