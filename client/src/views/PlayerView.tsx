@@ -10,7 +10,6 @@ export const PlayerView: React.FC = () => {
   const [studentId, setStudentId] = useState('');
   const [name, setName] = useState('');
   const [avatarId, setAvatarId] = useState<'mario' | 'luigi'>('mario');
-  const [recoveryInput, setRecoveryInput] = useState('');
 
   if (socket.isReconnecting) {
     return (
@@ -152,15 +151,6 @@ export const PlayerView: React.FC = () => {
             </label>
             <button disabled={!socket.isConnected} className="min-h-14 w-full rounded-xl border-2 border-yellow-300 bg-red-600 px-4 py-3 font-pixel text-sm text-white disabled:opacity-50">
               {socket.isConnected ? 'JOIN LOBBY ▶' : 'CONNECTING…'}
-            </button>
-          </form>
-          <form className="mt-5 border-t border-slate-600 pt-4" onSubmit={event => { event.preventDefault(); if (recoveryInput.trim()) socket.reconnectWithToken(recoveryInput.trim()); }}>
-            <label className="block text-xs text-slate-200" htmlFor="recover-token">
-              Recovery token from host
-              <input id="recover-token" value={recoveryInput} onChange={event => setRecoveryInput(event.target.value)} placeholder="Paste token here" className="mt-2 w-full rounded-lg border border-slate-500 bg-slate-950 p-3 text-sm text-white" />
-            </label>
-            <button disabled={!recoveryInput.trim() || !socket.isConnected} className="mt-3 min-h-11 w-full rounded-lg bg-blue-700 px-4 text-sm font-bold disabled:opacity-50">
-              Restore my game
             </button>
           </form>
         </div>

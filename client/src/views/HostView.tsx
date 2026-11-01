@@ -9,7 +9,7 @@ export const HostView: React.FC = () => {
   const {
     isConnected, isAuthenticated, gameState, counts, pipeReadyCount, leaderboard, finalists,
     lastError, clearError, send, speakerRemainingMs,
-    cutoff, judgeNames, judgeReadiness, judgeMatrix, recoveryToken, authenticateHost
+    cutoff, judgeNames, judgeReadiness, judgeMatrix, authenticateHost
   } = useGameSocket('HOST');
   const [pin, setPin] = useState('');
   const [selectedFinalistId, setSelectedFinalistId] = useState('');
@@ -20,7 +20,6 @@ export const HostView: React.FC = () => {
   const [communication, setCommunication] = useState(3);
   const [remarks, setRemarks] = useState('');
   const [tieRound, setTieRound] = useState(1);
-  const [recoveryId, setRecoveryId] = useState('');
 
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
@@ -301,14 +300,6 @@ export const HostView: React.FC = () => {
             {!!judgeReadiness?.ties?.length && <div className="space-y-3 bg-purple-950 border border-purple-500 p-3 rounded-lg"><p className="text-sm">Podium tie: {judgeReadiness.ties.map(p => p.name).join(', ')}. Ask each the same follow-up; score clarity and reasoning.</p><p className="text-sm font-semibold text-yellow-200">{FINAL_FOLLOW_UP}</p><label className="block text-sm">Follow-up round<input type="number" min="1" max="20" value={tieRound} onChange={e => setTieRound(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-500 rounded-lg p-2 mt-1" /></label><p className="text-xs">Use the selected finalist and judge above. Clarity and reasoning sliders above supply the follow-up scores.</p><button onClick={() => send({ type: 'HOST_SUBMIT_FINAL_TIEBREAK', finalist_id: currentFinalistId, judge_name: currentJudgeName, round_no: tieRound, clarity_score: clarity, reasoning_score: reasoning })} className="event-button bg-purple-700">Save follow-up score</button></div>}
             <button disabled={!judgeReadiness?.ready} onClick={() => { if (window.confirm('A second team member has checked all scores and winners?')) send({ type: 'HOST_VERIFY_RESULTS' }); }} className="event-button bg-green-700 w-full disabled:opacity-40"><ShieldCheck size={17} /> Mark independently verified</button>
             <button disabled={!gameState.results_verified} onClick={() => { if (window.confirm('Reveal the verified podium on the projector?')) send({ type: 'HOST_FINISH_AND_PODIUM' }); }} className="event-button bg-yellow-500 text-black w-full disabled:opacity-40"><Trophy size={17} /> Reveal podium</button>
-          </section>
-
-          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-3" aria-labelledby="operations">
-            <h2 id="operations" className="font-pixel text-sm text-yellow-300">OPERATIONS</h2>
-            <p className="text-sm text-slate-300">To move a registered player to another phone, verify their identity, issue a recovery link, and have them open it on that phone.</p>
-            <input aria-label="Roll number for session recovery" placeholder="Roll number" value={recoveryId} onChange={e => setRecoveryId(e.target.value)} className="w-full bg-slate-950 border border-slate-500 rounded-lg p-3" />
-            <button onClick={() => send({ type: 'HOST_RECOVER_PLAYER', studentId: recoveryId })} disabled={!recoveryId.trim()} className="event-button bg-slate-700 disabled:opacity-40">Issue recovery link</button>
-            {recoveryToken && <div className="break-all text-xs bg-slate-950 p-3 rounded-lg"><p>For {recoveryToken.studentId}:</p><p>{`${window.location.origin}/play?session=${encodeURIComponent(recoveryToken.sessionToken)}`}</p><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/play?session=${encodeURIComponent(recoveryToken.sessionToken)}`)} className="underline text-yellow-300 mt-2">Copy link</button></div>}
           </section>
 
           <section className="bg-red-950/20 border-2 border-red-500/60 rounded-xl p-5 space-y-4" aria-labelledby="danger-zone">

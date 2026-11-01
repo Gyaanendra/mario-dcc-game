@@ -283,17 +283,6 @@ export class DatabaseManager {
     `).get(tokenHash(token)) as unknown as Player | undefined;
   }
 
-  reissueSession(studentId: string): { sessionToken: string; playerId: string } {
-    const normalizedId = studentId.trim().toUpperCase();
-    const row = this.db.prepare('SELECT id FROM players WHERE student_id = ?').get(normalizedId) as { id: string } | undefined;
-    if (!row) throw new Error('Player not found');
-    const token = randomBytes(32).toString('base64url');
-    const result = this.db.prepare('UPDATE players SET session_token_hash = ? WHERE student_id = ?')
-      .run(tokenHash(token), normalizedId);
-    if (!result.changes) throw new Error('Player not found');
-    return { sessionToken: token, playerId: row.id };
-  }
-
   getPlayerById(id: string): Player | undefined {
     return this.db.prepare(`
       SELECT *, (level1_score + level2_score) as total_coins
