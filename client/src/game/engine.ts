@@ -4,7 +4,7 @@ import type {
   GameCamera, InputState, GameState, LevelData, AABB, Direction,
 } from './types';
 import { TileType } from './types';
-import { TILE, PHYSICS, COLORS, DIMENSIONS, createLevel1 } from './config';
+import { TILE, PHYSICS, COLORS, DIMENSIONS, createLevel1, createLevel2 } from './config';
 import {
   drawSky, drawCloud, drawHillLarge, drawHillSmall, drawBush,
   drawGroundTile, drawDeepTile, drawPlatformTile, drawBrickBlock,
@@ -55,13 +55,16 @@ export class GameEngine {
   private externalPause = false;
   private backgroundImage: HTMLImageElement | null = null;
   private avatarId: 'mario' | 'luigi';
+  private levelNumber: 1 | 2;
+  private flagpoleEnabled = false;
 
   private boundKeyDown: (e: KeyboardEvent) => void;
   private boundKeyUp: (e: KeyboardEvent) => void;
 
-  constructor(canvas: HTMLCanvasElement, avatarId: 'mario' | 'luigi' = 'mario') {
+  constructor(canvas: HTMLCanvasElement, avatarId: 'mario' | 'luigi' = 'mario', levelNumber: 1 | 2 = 1) {
     this.canvas = canvas;
     this.avatarId = avatarId;
+    this.levelNumber = levelNumber;
     this.ctx = canvas.getContext('2d')!;
     this.ctx.imageSmoothingEnabled = false;
     const background = new Image();
@@ -129,6 +132,8 @@ export class GameEngine {
     if (this.gameState) this.gameState.world = `${level}-1`;
   }
 
+  setFlagpoleEnabled(enabled: boolean) { this.flagpoleEnabled = enabled; }
+
   reset() {
     this.loadLevel();
   }
@@ -192,7 +197,7 @@ export class GameEngine {
 
   // ── level loading ───────────────────────────────────────────
   private loadLevel() {
-    this.level = createLevel1();
+    this.level = this.levelNumber === 2 ? createLevel2() : createLevel1();
     this.tick = 0;
     this.jumpHoldFrames = 0;
     this.timerAccum = 0;
@@ -264,7 +269,8 @@ export class GameEngine {
       viewWidth: this.canvas.width, viewHeight: this.canvas.height,
     };
 
-    this.gameState = { paused: false, gameOver: false, levelComplete: false, timer: 400, maxTime: 400, world: '1-1' };
+    this.gameState = { paused: false, gameOver: false, levelComplete: false, timer: 400, maxTime: 400,
+      world: this.levelNumber === 2 ? '2-1' : '1-1' };
 
     this.generateDecor();
     this.resize();
@@ -1000,7 +1006,7 @@ export class GameEngine {
 
   // ── flagpole ────────────────────────────────────────────────
   private checkFlagPole() {
-    if (!this.flagPole || this.flagPole.triggered) return;
+    if (!this.flagPole || this.flagPole.triggered || !this.flagpoleEnabled) return;
     const p = this.player;
     const fp = this.flagPole;
     if (p.pos.x + p.w >= fp.pos.x && p.pos.x <= fp.pos.x + 16) {
@@ -1099,6 +1105,11 @@ export class GameEngine {
         const wrappedX = ((sx % (cw + 200)) + cw + 200) % (cw + 200) - 100;
         drawBush(ctx, wrappedX, groundScreenY - 14, b.size * DIMENSIONS.bush.w);
       }
+    }
+
+    if (this.levelNumber === 2) {
+      ctx.fillStyle = 'rgba(40, 26, 96, 0.32)';
+      ctx.fillRect(0, 0, cw, 13 * TILE - cam.y);
     }
 
     // world→screen helper

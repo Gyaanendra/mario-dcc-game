@@ -59,7 +59,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       if (type === 'CLIENT_PIPE_ANSWER') {
         if (!boundPlayerId) throw new Error('Join before answering');
         const result = gameManager.submitPipeQuestAnswer(boundPlayerId, Number(data.pipeIndex),
-          Number(data.questionId), String(data.selectedOption || ''), Number(data.responseTimeMs || 0));
+          Number(data.questionId), String(data.selectedOption || ''));
         send(result);
         send(gameManager.getPipeQuestPayload(boundPlayerId));
         return;
@@ -119,6 +119,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         case 'HOST_VERIFY_RESULTS': gameManager.verifyResults(); break;
         case 'HOST_FINISH_AND_PODIUM': gameManager.finishAndShowPodium(); break;
         case 'HOST_RESET_GAME': gameManager.resetGame(Boolean(data.wipePlayers)); break;
+        case 'HOST_ADVANCE_PLAYER_LEVEL': gameManager.advancePlayerLevel(String(data.playerId), Number(data.targetLevel || 2)); break;
         default: throw new Error(`Unknown host action: ${type}`);
       }
     } catch (error) {

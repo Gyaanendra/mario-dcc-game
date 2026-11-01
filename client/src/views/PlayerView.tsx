@@ -91,7 +91,7 @@ export const PlayerView: React.FC = () => {
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="font-pixel text-yellow-400 text-[10px]">4.</span>
-                  <p><strong>Flagpole Finish:</strong> Clear all 10 pillars and grab the flagpole for a big finish bonus! Top 50 advance.</p>
+                  <p><strong>Flagpole Finish:</strong> Clear all 10 pillars and grab the flagpole for a big finish bonus! Everyone can play Level 2 when the host starts it.</p>
                 </div>
               </div>
             </div>
@@ -106,9 +106,10 @@ export const PlayerView: React.FC = () => {
     }
 
     // 2. WHEN HOST STARTS LEVEL 1 OR 2: Launch the 2D Mario Platformer!
+    const effectiveLevel = (socket.player.is_qualified_level2 || socket.gameState.current_level >= 2) ? 2 : (socket.gameState.current_level || 1);
     return (
       <Suspense fallback={<div className="min-h-screen grid place-items-center bg-sky-800 text-white font-pixel">LOADING QUEST…</div>}>
-        <GameView key={socket.gameState.current_level >= 2 ? socket.gameState.current_level : 1} socket={socket} />
+        <GameView key={effectiveLevel} socket={socket} />
       </Suspense>
     );
   }
@@ -123,7 +124,7 @@ export const PlayerView: React.FC = () => {
           <p className="inline-block rounded-full border border-white/40 bg-sky-950/75 px-4 py-2 text-xs font-bold tracking-widest">BENNETT UNIVERSITY · DEAN CAREER CLOUD</p>
           <h1 className="mt-6 font-pixel text-3xl leading-normal text-yellow-300 drop-shadow-[4px_5px_0_#17345c] md:text-5xl">MARIO<br />CAREER QUEST</h1>
           <p className="mt-5 text-lg font-semibold text-white drop-shadow-md">Run, jump onto pillars, solve career challenges, and level up!</p>
-          <p className="mt-3 text-sm text-white/90">Join the arena on your phone or laptop. Fast and accurate answers earn coins. Top 50 advance to Level 2.</p>
+          <p className="mt-3 text-sm text-white/90">Join the arena on your phone or laptop. Fast and accurate answers earn coins. Everyone can play Level 2.</p>
         </div>
         <div className="w-full max-w-md rounded-2xl border-4 border-black bg-[#15243b]/95 p-5 shadow-[8px_8px_0_#0d1727] sm:p-7">
           <h2 className="font-pixel text-sm text-yellow-300">ENTER THE QUEST</h2>

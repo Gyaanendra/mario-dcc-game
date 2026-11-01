@@ -235,3 +235,42 @@ export function createLevel1(): LevelData {
     ],
   };
 }
+
+export function createLevel2(): LevelData {
+  const base = createLevel1();
+  const segment = 240 * TILE;
+  const width = 560 * TILE;
+  const tiles = base.tiles.map(row => [
+    ...row,
+    ...row,
+    ...row.slice(0, 80),
+  ]);
+  const shifted = <T extends { x: number }>(items: T[], offset: number) =>
+    items.map(item => ({ ...item, x: item.x + offset }));
+  const repeat = <T extends { x: number }>(items: T[]) => [
+    ...shifted(items, 0), ...shifted(items, segment),
+    ...shifted(items.filter(item => item.x < 80 * TILE), segment * 2),
+  ];
+  return {
+    ...base,
+    width,
+    tiles,
+    enemies: repeat(base.enemies),
+    blocks: repeat(base.blocks),
+    pipes: [
+      ...shifted(base.pipes, 0),
+      ...shifted(base.pipes, segment),
+      ...shifted(base.pipes.slice(0, 5), segment * 2),
+    ],
+    movingPlatforms: [0, segment, segment * 2].flatMap((offset, index) =>
+      base.movingPlatforms.filter(platform => index < 2 || platform.x < 80 * TILE)
+        .map(platform => ({ ...platform, x: platform.x + offset,
+          startX: platform.startX + offset, endX: platform.endX + offset }))),
+    checkpoints: [
+      ...shifted(base.checkpoints, 0),
+      ...shifted(base.checkpoints, segment),
+      { x: 500 * TILE, y: 12 * TILE },
+    ],
+    flagPole: { x: 555 * TILE, y: 3 * TILE, h: 10 * TILE },
+  };
+}

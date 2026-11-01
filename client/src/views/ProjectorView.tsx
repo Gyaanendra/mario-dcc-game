@@ -20,6 +20,7 @@ export const ProjectorView: React.FC = () => {
     finalists,
     counts,
     pipeReadyCount,
+    totalPipes,
     remainingSeconds,
     speakerRemainingMs,
     publicJoinUrl,
@@ -180,7 +181,7 @@ export const ProjectorView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-zinc-300">
                   <span className="font-pixel text-[10px]">3.</span>
-                  <span>Jump onto a pipe to answer • Top 50 then top 10 advance!</span>
+                  <span>Jump onto a pipe to answer • Everyone plays Level 2!</span>
                 </div>
               </div>
             </div>
@@ -193,7 +194,7 @@ export const ProjectorView: React.FC = () => {
               <div className="mt-3 text-center">
                 <div className="font-pixel text-[10px] text-zinc-400">JOIN URL:</div>
                 <div className="font-mono text-lg font-bold text-yellow-300 mt-0.5 break-all">{joinUrl}</div>
-                <div className="text-sm text-slate-200 mt-2">Correct answer: 100 points + up to 20 speed points. Practice does not count.</div>
+                <div className="text-sm text-slate-200 mt-2">Correct pipe answer: 100 points + up to 50 speed points. Practice does not count.</div>
               </div>
             </div>
           </div>
@@ -207,13 +208,13 @@ export const ProjectorView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-pixel text-[10px] px-2 py-0.5 rounded bg-red-600 text-white animate-pulse">LIVE ARENA</span>
-                  <span className="font-pixel text-xs text-sky-300">WORLD 1-{gameState.current_level}</span>
+                  <span className="font-pixel text-xs text-sky-300">WORLD {gameState.current_level}-1</span>
                 </div>
                 <h1 className="font-pixel text-2xl text-yellow-300 mt-1">
                   LEVEL {gameState.current_level} — LIVE LEADERBOARD
                 </h1>
                 <p className="text-xs text-slate-200 font-mono mt-0.5">
-                  {gameState.current_level === 1 ? 'Top 50 Qualify for Level 2 · Run to pillars, answer questions, and grab the flagpole!' : 'Top 10 Qualify for Bowser Boss Battle Finale!'}
+                  {gameState.current_level === 1 ? 'Top 50 earn Level 1 recognition · Everyone plays Level 2!' : 'All players compete for the top 10 Bowser Boss Battle places!'}
                 </p>
               </div>
 
@@ -249,7 +250,7 @@ export const ProjectorView: React.FC = () => {
                     const idx = visiblePage * 10 + pageIndex;
                     const score = gameState.current_level === 1 ? player.level1_score : player.level2_score;
                     const completedPillars = player.completed_pipes ?? 0;
-                    const isFinished = completedPillars >= 10;
+                    const isFinished = completedPillars >= totalPipes;
                     return (
                       <tr
                         key={player.id}
@@ -270,7 +271,6 @@ export const ProjectorView: React.FC = () => {
                             {player.avatar_id === 'luigi' ? <LuigiSprite size={24} /> : <MarioSprite size={24} />}
                             <div>
                               <div className="font-sans font-bold text-white text-sm leading-tight">{player.name}</div>
-                              <div className="text-[10px] text-zinc-400 font-mono">{player.student_id}</div>
                             </div>
                           </div>
                         </td>
@@ -279,10 +279,10 @@ export const ProjectorView: React.FC = () => {
                             <div className="w-24 bg-black/60 h-2.5 rounded-full overflow-hidden border border-zinc-700">
                               <div
                                 className={`h-full transition-all duration-500 ${isFinished ? 'bg-green-400' : 'bg-yellow-400'}`}
-                                style={{ width: `${Math.min(100, (completedPillars / 10) * 100)}%` }}
+                                style={{ width: `${Math.min(100, (completedPillars / Math.max(1, totalPipes)) * 100)}%` }}
                               />
                             </div>
-                            <span className="font-mono text-xs font-bold text-yellow-300">{completedPillars}/10</span>
+                            <span className="font-mono text-xs font-bold text-yellow-300">{completedPillars}/{totalPipes}</span>
                           </div>
                         </td>
                         <td className="py-2.5 px-3 text-right">
@@ -307,7 +307,7 @@ export const ProjectorView: React.FC = () => {
 
               {/* Page Indicator */}
               <div className="mt-3 pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400 font-mono">
-                <div>Top 50 advance to Level 2 · Cut-off line at #50</div>
+                <div>{gameState.current_level === 1 ? 'Top 50 Level 1 recognition · Everyone plays Level 2' : 'Top 10 advance to the Bowser Boss Battle'}</div>
                 <div>Page {visiblePage + 1} of {pageCount} (auto-cycling every 7s)</div>
               </div>
             </div>
@@ -431,7 +431,7 @@ export const ProjectorView: React.FC = () => {
                 LEVEL {gameState.current_level} LEADERBOARD
               </h2>
               <p className="text-xs font-mono text-zinc-400 mt-0.5">
-                {gameState.current_level === 1 && 'Top 50 Qualify for Level 2 (Pipe Run)'}
+                {gameState.current_level === 1 && 'Top 50 Level 1 recognition · Everyone plays Level 2'}
                 {gameState.current_level === 2 && 'Top 10 Qualify for Bowser Boss Battle Finale'}
               </p>
               <p className="text-sm font-mono text-yellow-200 mt-2">{qualifiedPlayers.length ? `${qualifiedPlayers.length} qualified` : 'Scores pending cut-off'} · Page {visiblePage + 1}/{pageCount}</p>
@@ -473,7 +473,7 @@ export const ProjectorView: React.FC = () => {
                       <td className="py-2 px-3 text-center">
                         {(gameState.current_level === 1 ? player.is_qualified_level2 : player.is_qualified_level3) ? (
                           <span className="px-2 py-0.5 bg-green-600/30 border border-green-500 rounded text-[10px] text-green-300 font-bold">
-                            QUALIFIED
+                            {gameState.current_level === 1 ? 'TOP 50' : 'FINALIST'}
                           </span>
                         ) : (
                           <span className="text-zinc-500 text-[10px]">In Quest</span>
