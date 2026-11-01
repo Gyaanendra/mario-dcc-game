@@ -115,7 +115,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const questionIsLive = socket.gameState.game_status === 'QUESTION_ACTIVE';
   const awaitingPipe = questionIsLive && pipeIndex === null && !socket.isSpectator && !socket.myAnswer;
   const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
-  const totalPipes = socket.pipeQuest.totalPipes || (level === 2 ? 25 : 10);
+  const totalPipes = socket.pipeQuest.totalPipes || (level === 2 ? 25 : 15);
   const levelScore = level === 2 ? socket.player?.level2_score : socket.player?.level1_score;
 
   const handleAnswerSubmit = (key: string) => {

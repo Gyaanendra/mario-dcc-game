@@ -93,7 +93,7 @@ const B = T.BRICK;
 const D = T.GROUND_DEEP;
 const P = T.PLATFORM;
 
-export function createLevel1(): LevelData {
+function createBaseLevel(): LevelData {
   const cols = 240;
   const rows = 15;
   const tiles: number[][] = [];
@@ -236,8 +236,32 @@ export function createLevel1(): LevelData {
   };
 }
 
+export function createLevel1(): LevelData {
+  const base = createBaseLevel();
+  const offset = 240 * TILE;
+  const firstFiveArea = 80 * TILE;
+  return {
+    ...base,
+    width: 320 * TILE,
+    tiles: base.tiles.map(row => [...row, ...row.slice(0, 80)]),
+    enemies: [...base.enemies,
+      ...base.enemies.filter(enemy => enemy.x < firstFiveArea).map(enemy => ({ ...enemy, x: enemy.x + offset }))],
+    blocks: [...base.blocks,
+      ...base.blocks.filter(block => block.x < firstFiveArea).map(block => ({ ...block, x: block.x + offset }))],
+    pipes: [...base.pipes,
+      ...base.pipes.slice(0, 5).map(pipe => ({ ...pipe, x: pipe.x + offset }))],
+    movingPlatforms: [...base.movingPlatforms,
+      ...base.movingPlatforms.filter(platform => platform.x < firstFiveArea).map(platform => ({
+        ...platform, x: platform.x + offset,
+        startX: platform.startX + offset, endX: platform.endX + offset,
+      }))],
+    checkpoints: [...base.checkpoints, { x: 260 * TILE, y: 12 * TILE }],
+    flagPole: { x: 315 * TILE, y: 3 * TILE, h: 10 * TILE },
+  };
+}
+
 export function createLevel2(): LevelData {
-  const base = createLevel1();
+  const base = createBaseLevel();
   const segment = 240 * TILE;
   const width = 560 * TILE;
   const tiles = base.tiles.map(row => [
