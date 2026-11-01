@@ -83,6 +83,23 @@ test('session token restores identity; roll number alone cannot take over', () =
   } finally { x.cleanup(); }
 });
 
+test('enrolment number allows only one registration across separator variants', () => {
+  const x = fixture();
+  try {
+    const first = x.db.createPlayer('e22-cseu_001', 'First player', 'mario');
+    assert.equal(first.player.student_id, 'E22CSEU001');
+    for (const duplicate of ['E22CSEU001', 'e22 cseu 001', 'E22.CSEU.001', ' E22_CSEU_001 ']) {
+      assert.throws(() => x.db.createPlayer(duplicate, 'Second player', 'luigi'), /already registered/);
+    }
+    assert.equal(x.db.getPlayerCount().total, 1);
+    assert.equal(x.db.getPlayerBySessionToken(first.sessionToken)?.id, first.player.id);
+
+    x.raw.prepare('INSERT INTO players (id, student_id, name) VALUES (?, ?, ?)').run('legacy-player', 'LEGACY-002', 'Legacy player');
+    assert.throws(() => x.db.createPlayer('legacy002', 'New player', 'mario'), /already registered/);
+    assert.equal(x.db.getPlayerCount().total, 2);
+  } finally { x.cleanup(); }
+});
+
 test('cut-off tie requires sudden death and server rejects spectators', () => {
   const x = fixture();
   try {

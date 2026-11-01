@@ -37,6 +37,8 @@ npm start
 
 These environment variables must be exported to the server process or configured in its service manager. `.env.example` is a reference and is **not automatically loaded**. The server serves the built client and `/ws` on one port (default 3001). Routes are `/play` (also `/` and `/join`), `/projector`, and `/host`. The host PIN is entered in the host view. `/api/questions` requires `Authorization: Bearer <HOST_PIN>`; public leaderboards exclude roll numbers and session credentials.
 
+Each enrolment number or student email can register once. Case and separators in an enrolment number (spaces, hyphens, dots, and underscores) do not create another registration. Players return on the original browser through automatic session reconnection; a normal game reset keeps registrations.
+
 `DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with live or pipe-run answers. Review all question wording and answer keys with the DCC content team before the event.
 
 ## Rehearsal and fallback
