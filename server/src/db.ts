@@ -81,7 +81,8 @@ export class DatabaseManager {
         points INTEGER DEFAULT 100,
         time_limit_sec INTEGER DEFAULT 25,
         sort_order INTEGER DEFAULT 0,
-        is_practice INTEGER DEFAULT 0
+        is_practice INTEGER DEFAULT 0,
+        image_url TEXT
       );
 
       CREATE TABLE IF NOT EXISTS player_answers (
@@ -168,7 +169,7 @@ export class DatabaseManager {
         speaker_running: 'INTEGER DEFAULT 0', results_verified: 'INTEGER DEFAULT 0'
       },
       players: { session_token_hash: 'TEXT' },
-      questions: { is_practice: 'INTEGER DEFAULT 0' }
+      questions: { is_practice: 'INTEGER DEFAULT 0', image_url: 'TEXT' }
     };
     for (const [table, columns] of Object.entries(additions)) {
       const existing = new Set((this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
@@ -372,7 +373,8 @@ export class DatabaseManager {
       q.correct_option === bank[i].correct_option &&
       (q.explanation ?? null) === (bank[i].explanation ?? null) &&
       q.points === bank[i].points && q.time_limit_sec === bank[i].time_limit_sec &&
-      q.sort_order === bank[i].sort_order)) return 'current';
+      q.sort_order === bank[i].sort_order &&
+      (q.image_url ?? null) === (bank[i].image_url ?? null))) return 'current';
     const activity = this.db.prepare(`SELECT 1 FROM player_answers a JOIN questions q ON q.id = a.question_id
       WHERE q.level = ? AND q.is_practice = 0 LIMIT 1`).get(level) ||
       this.db.prepare('SELECT 1 FROM pipe_quest_answers WHERE level = ? LIMIT 1').get(level) ||
@@ -384,11 +386,11 @@ export class DatabaseManager {
       this.db.prepare("DELETE FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0").run(level);
       const insert = this.db.prepare(`INSERT INTO questions
         (level, category, prompt, option_a, option_b, option_c, option_d,
-         correct_option, explanation, points, time_limit_sec, sort_order, is_practice)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`);
+         correct_option, explanation, points, time_limit_sec, sort_order, is_practice, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`);
       for (const q of bank) insert.run(q.level, q.category, q.prompt, q.option_a, q.option_b,
         q.option_c ?? null, q.option_d ?? null, q.correct_option, q.explanation ?? null,
-        q.points, q.time_limit_sec, q.sort_order);
+        q.points, q.time_limit_sec, q.sort_order, q.image_url ?? null);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');

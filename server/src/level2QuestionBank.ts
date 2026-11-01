@@ -84,7 +84,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It shows a method (same request, same data, repeated runs), attributes the gain to specific changes, and states the limits honestly. A rests on someone else’s opinion and B on an unrecorded one-off measurement, so neither can be defended. D refuses a question about the candidate’s own method, which can be answered without revealing confidential details.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 6
+    "sort_order": 6,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -98,7 +99,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It frames a small pilot as a purposeful, honest step and shows engineering judgment about what scaling needs. B undermines the work by presenting it as a failure to get users, C dodges the question by dismissing the user count, and D postpones scaling to a job offer without showing what it needs.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 7
+    "sort_order": 7,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -112,7 +114,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It is now the only bullet with no scope or outcome. A hides a field that may be required, B removes proof, and C would undo the honest grouping of skills.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 8
+    "sort_order": 8,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -126,7 +129,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It states the target, the real stack and the real stage. A overclaims, C says nothing searchable, and D turns a 3-week internship into a job title he does not hold.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 9
+    "sort_order": 9,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -140,7 +144,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Preferred items are flexible and required items are matched, so he should apply honestly. A and D are false claims, and B gives up a viable opportunity over skills that are only preferred.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 10
+    "sort_order": 10,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,

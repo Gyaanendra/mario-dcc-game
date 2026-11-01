@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329"/>
+      <stop offset="100%" stop-color="#141f3d"/>
+    </linearGradient>
+    <linearGradient id="chatBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f2621"/>
+      <stop offset="100%" stop-color="#071814"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3b33"/>
+      <stop offset="100%" stop-color="#142c26"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="800" height="450" rx="16" fill="url(#bgGrad)"/>
+  <rect x="2" y="2" width="796" height="446" rx="14" fill="none" stroke="#334155" stroke-width="2"/>
+
+  <!-- Window Header -->
+  <rect x="0" y="0" width="800" height="42" rx="16" fill="#1e293b"/>
+  <circle cx="24" cy="21" r="6" fill="#ef4444"/>
+  <circle cx="44" cy="21" r="6" fill="#eab308"/>
+  <circle cx="64" cy="21" r="6" fill="#22c55e"/>
+  <text x="400" y="26" text-anchor="middle" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" letter-spacing="1">CASE AUDIT: RECRUITMENT COMMUNICATION</text>
+
+  <!-- Left: Mock WhatsApp Chat Phone Screen -->
+  <g transform="translate(40, 60)" filter="url(#shadow)">
+    <!-- Phone Body -->
+    <rect width="320" height="360" rx="20" fill="#000" stroke="#334155" stroke-width="2"/>
+    <rect x="8" y="8" width="304" height="344" rx="14" fill="url(#chatBg)"/>
+
+    <!-- WhatsApp Header -->
+    <rect x="8" y="8" width="304" height="48" rx="14" fill="#075e54"/>
+    <circle cx="36" cy="32" r="16" fill="#128c7e"/>
+    <text x="36" y="37" text-anchor="middle" fill="#fff" font-family="system-ui, sans-serif" font-size="13" font-weight="bold">HR</text>
+    <text x="62" y="28" fill="#fff" font-family="system-ui, sans-serif" font-size="13" font-weight="bold">Microsoft Global Talent</text>
+    <text x="62" y="44" fill="#86efac" font-family="system-ui, sans-serif" font-size="10">careers-microsoft@gmail.com</text>
+
+    <!-- Message Bubble -->
+    <rect x="20" y="70" width="280" height="200" rx="12" fill="url(#bubble)" stroke="#2a5246" stroke-width="1"/>
+
+    <text x="32" y="92" fill="#fef08a" font-family="system-ui, sans-serif" font-size="12" font-weight="bold">EXCLUSIVE SELECTION OFFER</text>
+    <text x="32" y="112" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="11">Dear Candidate,</text>
+    <text x="32" y="130" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="11">You have been selected for </text>
+    <text x="32" y="148" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="11" font-weight="bold">ML Research Intern · ₹40,000/mo</text>
+    <text x="32" y="172" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">To confirm onboarding and issue your </text>
+    <text x="32" y="190" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">corporate ID card &amp; badge, deposit:</text>
+
+    <rect x="32" y="202" width="256" height="32" rx="6" fill="#7f1d1d" stroke="#ef4444" stroke-width="1"/>
+    <text x="160" y="222" text-anchor="middle" fill="#fecaca" font-family="system-ui, sans-serif" font-size="12" font-weight="bold">₹750 Registration &amp; Badge Fee</text>
+
+    <text x="32" y="254" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="9">Offer expires in 2 hours. Send UPI screenshot.</text>
+    <text x="278" y="262" text-anchor="end" fill="#64748b" font-family="system-ui, sans-serif" font-size="9">11:42 AM ✓✓</text>
+  </g>
+
+  <!-- Right: Forensic Analysis Callouts -->
+  <g transform="translate(390, 75)">
+    <text x="0" y="20" fill="#facc15" font-family="system-ui, sans-serif" font-size="16" font-weight="900" letter-spacing="1">FORENSIC RED-FLAG AUDIT</text>
+    <text x="0" y="42" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="12">Analyze the 3 highlighted anomalies in this offer message:</text>
+
+    <!-- Callout 1 -->
+    <g transform="translate(0, 60)">
+      <rect width="370" height="64" rx="8" fill="#1e1b4b" stroke="#818cf8" stroke-width="1.5"/>
+      <circle cx="28" cy="32" r="14" fill="#4338ca"/>
+      <text x="28" y="37" text-anchor="middle" fill="#fff" font-family="system-ui, sans-serif" font-size="13" font-weight="bold">1</text>
+      <text x="52" y="26" fill="#c7d2fe" font-family="system-ui, sans-serif" font-size="12" font-weight="bold">Public Email Domain (@gmail.com)</text>
+      <text x="52" y="46" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">Enterprises never recruit via free personal webmail.</text>
+    </g>
+
+    <!-- Callout 2 -->
+    <g transform="translate(0, 136)">
+      <rect width="370" height="64" rx="8" fill="#450a0a" stroke="#f87171" stroke-width="1.5"/>
+      <circle cx="28" cy="32" r="14" fill="#b91c1c"/>
+      <text x="28" y="37" text-anchor="middle" fill="#fff" font-family="system-ui, sans-serif" font-size="13" font-weight="bold">2</text>
+      <text x="52" y="26" fill="#fca5a5" font-family="system-ui, sans-serif" font-size="12" font-weight="bold">Upfront Payment / "Badge Fee"</text>
+      <text x="52" y="46" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">Genuine employers NEVER charge onboarding fees.</text>
+    </g>
+
+    <!-- Callout 3 -->
+    <g transform="translate(0, 212)">
+      <rect width="370" height="64" rx="8" fill="#14261c" stroke="#4ade80" stroke-width="1.5"/>
+      <circle cx="28" cy="32" r="14" fill="#15803d"/>
+      <text x="28" y="37" text-anchor="middle" fill="#fff" font-family="system-ui, sans-serif" font-size="13" font-weight="bold">3</text>
+      <text x="52" y="26" fill="#86efac" font-family="system-ui, sans-serif" font-size="12" font-weight="bold">Artificial Urgency Pressure</text>
+      <text x="52" y="46" fill="#cbd5e1" font-family="system-ui, sans-serif" font-size="11">2-hour expiry bypasses candidate due diligence.</text>
+    </g>
+
+    <!-- Bottom summary tag -->
+    <rect x="0" y="292" width="370" height="34" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="185" y="314" text-anchor="middle" fill="#fbbf24" font-family="system-ui, sans-serif" font-size="11" font-weight="bold">DCC RULE: Never transfer money to secure an internship.</text>
+  </g>
+</svg>

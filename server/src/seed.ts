@@ -14,6 +14,7 @@ export function seedQuestions() {
     ...level1QuestionBank,
 
     // Level 2: the complete attached question bank (10 MCQs and 15 Myth/Fact items).
+
     ...level2QuestionBank,
 
     // =========================================================================
@@ -97,8 +98,8 @@ export function seedQuestions() {
     db.exec('DELETE FROM questions; DELETE FROM sqlite_sequence WHERE name = \'questions\';');
 
   const stmt = db.prepare(`
-    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order, is_practice)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order, is_practice, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const q of questions) {
@@ -115,7 +116,8 @@ export function seedQuestions() {
       q.points,
       q.time_limit_sec,
       q.sort_order,
-      (q as any).is_practice || 0
+      (q as any).is_practice || 0,
+      'image_url' in q ? q.image_url || null : null
     );
   }
     db.exec('COMMIT');

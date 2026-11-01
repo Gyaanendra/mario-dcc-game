@@ -38,6 +38,7 @@ export interface Question {
   time_limit_sec: number;
   sort_order: number;
   is_practice: number;
+  image_url?: string | null;
 }
 
 export interface Player {
@@ -136,7 +137,8 @@ export type HostMessageType =
   | 'HOST_SUBMIT_FINAL_TIEBREAK'
   | 'HOST_VERIFY_RESULTS'
   | 'HOST_FINISH_AND_PODIUM'
-  | 'HOST_RESET_GAME';
+  | 'HOST_RESET_GAME'
+  | 'HOST_ADVANCE_PLAYER_LEVEL';
 
 export type ServerBroadcastType =
   | 'SYNC_STATE'
@@ -153,4 +155,5 @@ export type ServerBroadcastType =
   | 'PIPE_QUEST_STATE'
   | 'PIPE_QUEST_RESULT'
   | 'FLAGPOLE_RESULT'
+  | 'PLAYER_LEVEL_ADVANCE'
   | 'ERROR_MSG';
