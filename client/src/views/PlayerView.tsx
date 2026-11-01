@@ -106,9 +106,10 @@ export const PlayerView: React.FC = () => {
     }
 
     // 2. WHEN HOST STARTS LEVEL 1 OR 2: Launch the 2D Mario Platformer!
+    const effectiveLevel = (socket.player.is_qualified_level2 || socket.gameState.current_level >= 2) ? 2 : (socket.gameState.current_level || 1);
     return (
       <Suspense fallback={<div className="min-h-screen grid place-items-center bg-sky-800 text-white font-pixel">LOADING QUEST…</div>}>
-        <GameView key={socket.gameState.current_level >= 2 ? socket.gameState.current_level : 1} socket={socket} />
+        <GameView key={effectiveLevel} socket={socket} />
       </Suspense>
     );
   }
