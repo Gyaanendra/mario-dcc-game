@@ -18,7 +18,7 @@ function fixture() {
   insert.run(1, 'SUDDEN_DEATH', 'Tie 1', 'Yes', 'No', 'A', 0, 15, 99, 0);
   insert.run(2, 'SUDDEN_DEATH', 'Tie 2', 'Yes', 'No', 'A', 0, 15, 99, 0);
   const manager = new GameManager(db);
-  return { db, manager, raw, cleanup: () => { manager.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { db, manager, raw, cleanup: () => { manager.close(); raw.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 const player = (db: DatabaseManager, suffix: string) => db.createPlayer(`ROLL${suffix}`, `Player ${suffix}`, 'mario').player;
 
