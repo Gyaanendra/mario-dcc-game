@@ -76,6 +76,7 @@ export interface SocketHookState {
   finalists: PlayerData[];
   counts: { total: number; connected: number };
   pipeReadyCount: number;
+  totalPipes: number;
   pipeQuest: PipeQuestState;
   pipeQuestResult: PipeQuestResult | null;
   pipeQuestPending: boolean;
@@ -122,6 +123,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [finalists, setFinalists] = useState<PlayerData[]>([]);
   const [counts, setCounts] = useState({ total: 0, connected: 0 });
   const [pipeReadyCount, setPipeReadyCount] = useState(0);
+  const [totalPipes, setTotalPipes] = useState(10);
   const [pipeQuest, setPipeQuest] = useState<PipeQuestState>({ totalPipes: 0, completedPipes: 0,
     correctCount: 0, nextPipeIndex: 0, question: null });
   const [pipeQuestResult, setPipeQuestResult] = useState<PipeQuestResult | null>(null);
@@ -181,6 +183,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
             if (data.finalists !== undefined) setFinalists(data.finalists);
             if (data.counts) setCounts(data.counts);
             if (data.pipeReadyCount !== undefined) setPipeReadyCount(data.pipeReadyCount);
+            if (data.totalPipes !== undefined) setTotalPipes(data.totalPipes);
             if (data.cutoff !== undefined) setCutoff(data.cutoff);
             if (data.judgeNames) setJudgeNames(data.judgeNames);
             if (data.judgeReadiness) setJudgeReadiness(data.judgeReadiness);
@@ -267,6 +270,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
     myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, pipeReadyCount,
     pipeQuest, pipeQuestResult, pipeQuestPending, cutoff, judgeNames,
     judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, lastError, remainingSeconds, speakerRemainingMs,
+    totalPipes,
     send, joinAsPlayer, submitAnswer, submitPipeQuestAnswer, clearPipeQuestResult,
     authenticateHost, clearError };
 }

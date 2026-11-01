@@ -100,12 +100,13 @@ export class DatabaseManager {
 
       CREATE TABLE IF NOT EXISTS pipe_quest_answers (
         player_id TEXT NOT NULL,
+        level INTEGER NOT NULL,
         pipe_index INTEGER NOT NULL,
         question_id INTEGER NOT NULL,
         selected_option TEXT NOT NULL,
         is_correct INTEGER NOT NULL,
         answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY(player_id, pipe_index),
+        PRIMARY KEY(player_id, level, pipe_index),
         FOREIGN KEY(player_id) REFERENCES players(id),
         FOREIGN KEY(question_id) REFERENCES questions(id)
       );
@@ -173,6 +174,34 @@ export class DatabaseManager {
       const existing = new Set((this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
       for (const [column, definition] of Object.entries(columns)) {
         if (!existing.has(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    }
+
+    // Older events keyed pipe progress only by player and pipe index. Preserve
+    // those answers while making the same pipe positions reusable in Level 2.
+    const pipeColumns = new Set((this.db.prepare('PRAGMA table_info(pipe_quest_answers)').all() as { name: string }[]).map(c => c.name));
+    if (!pipeColumns.has('level')) {
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        this.db.exec(`
+          CREATE TABLE pipe_quest_answers_v2 (
+            player_id TEXT NOT NULL, level INTEGER NOT NULL, pipe_index INTEGER NOT NULL,
+            question_id INTEGER NOT NULL, selected_option TEXT NOT NULL, is_correct INTEGER NOT NULL,
+            answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(player_id, level, pipe_index),
+            FOREIGN KEY(player_id) REFERENCES players(id),
+            FOREIGN KEY(question_id) REFERENCES questions(id)
+          );
+          INSERT INTO pipe_quest_answers_v2 (player_id, level, pipe_index, question_id, selected_option, is_correct, answered_at)
+          SELECT a.player_id, COALESCE(q.level, 1), a.pipe_index, a.question_id, a.selected_option, a.is_correct, a.answered_at
+          FROM pipe_quest_answers a LEFT JOIN questions q ON q.id = a.question_id;
+          DROP TABLE pipe_quest_answers;
+          ALTER TABLE pipe_quest_answers_v2 RENAME TO pipe_quest_answers;
+        `);
+        this.db.exec('COMMIT');
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
       }
     }
 
@@ -330,18 +359,48 @@ export class DatabaseManager {
     return this.db.prepare("SELECT * FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0 ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
   }
 
+  // Update only the unused Level 2 bank on an existing event database. Level 1
+  // players, scores and answers stay intact when the server is restarted.
+  installLevel2Questions(bank: ReadonlyArray<Omit<Question, 'id' | 'is_practice'>>): 'current' | 'installed' | 'in-use' {
+    const existing = this.getQuestionsForLevel(2);
+    if (existing.length === bank.length && existing.every((q, i) =>
+      q.prompt === bank[i].prompt && q.correct_option === bank[i].correct_option)) return 'current';
+    const activity = this.db.prepare(`SELECT 1 FROM player_answers a JOIN questions q ON q.id = a.question_id
+      WHERE q.level = 2 LIMIT 1`).get() ||
+      this.db.prepare('SELECT 1 FROM pipe_quest_answers WHERE level = 2 LIMIT 1').get() ||
+      this.db.prepare(`SELECT 1 FROM opened_questions o JOIN questions q ON q.id = o.question_id
+        WHERE q.level = 2 LIMIT 1`).get();
+    if (this.getGameState().current_level >= 2 || activity) return 'in-use';
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec("DELETE FROM questions WHERE level = 2 AND category != 'SUDDEN_DEATH'");
+      const insert = this.db.prepare(`INSERT INTO questions
+        (level, category, prompt, option_a, option_b, option_c, option_d,
+         correct_option, explanation, points, time_limit_sec, sort_order, is_practice)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`);
+      for (const q of bank) insert.run(q.level, q.category, q.prompt, q.option_a, q.option_b,
+        q.option_c ?? null, q.option_d ?? null, q.correct_option, q.explanation ?? null,
+        q.points, q.time_limit_sec, q.sort_order);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return 'installed';
+  }
+
   getPracticeQuestion(): Question | undefined {
     return this.db.prepare('SELECT * FROM questions WHERE is_practice = 1 LIMIT 1').get() as unknown as Question | undefined;
   }
 
   getPipeQuestQuestions(level: number = 1): Question[] {
-    return this.getQuestionsForLevel(level).filter(q => !q.is_practice && q.category !== 'SUDDEN_DEATH').slice(0, 10);
+    return this.getQuestionsForLevel(level).slice(0, level === 1 ? 10 : 25);
   }
 
-  getPipeQuestProgress(playerId: string): { completedPipes: number; correctCount: number } {
+  getPipeQuestProgress(playerId: string, level: number = 1): { completedPipes: number; correctCount: number } {
     const row = this.db.prepare(`SELECT COUNT(*) AS completedPipes,
-      COALESCE(SUM(is_correct), 0) AS correctCount FROM pipe_quest_answers WHERE player_id = ?`)
-      .get(playerId) as { completedPipes: number; correctCount: number };
+      COALESCE(SUM(is_correct), 0) AS correctCount FROM pipe_quest_answers WHERE player_id = ? AND level = ?`)
+      .get(playerId, level) as { completedPipes: number; correctCount: number };
     return row;
   }
 
@@ -354,18 +413,18 @@ export class DatabaseManager {
     let coinsAwarded = 0;
     if (state.current_level >= 1 && isCorrect && !question.is_practice) {
       const basePoints = question.points || 100;
-      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / 20000));
+      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / (question.time_limit_sec * 1000)));
       const speedBonus = Math.round(speedFactor * 50);
       coinsAwarded = basePoints + speedBonus;
     }
 
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      this.db.prepare(`INSERT OR REPLACE INTO pipe_quest_answers
-        (player_id, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?)`)
-        .run(playerId, pipeIndex, question.id, option, isCorrect ? 1 : 0);
+      this.db.prepare(`INSERT INTO pipe_quest_answers
+        (player_id, level, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(playerId, question.level, pipeIndex, question.id, option, isCorrect ? 1 : 0);
 
-      this.db.prepare(`INSERT OR REPLACE INTO player_answers
+      this.db.prepare(`INSERT INTO player_answers
         (player_id, question_id, selected_option, is_correct, response_time_ms, coins_awarded)
         VALUES (?, ?, ?, ?, ?, ?)`)
         .run(playerId, question.id, option, isCorrect ? 1 : 0, Math.floor(responseTimeMs), coinsAwarded);
@@ -384,8 +443,8 @@ export class DatabaseManager {
     return { selectedOption: option, isCorrect, coinsAwarded };
   }
 
-  hasPipeQuestAnswers(): boolean {
-    const row = this.db.prepare('SELECT 1 FROM pipe_quest_answers LIMIT 1').get();
+  hasPipeQuestAnswers(level: number): boolean {
+    const row = this.db.prepare('SELECT 1 FROM pipe_quest_answers WHERE level = ? LIMIT 1').get(level);
     return !!row;
   }
 
@@ -526,7 +585,6 @@ export class DatabaseManager {
     let where = '';
     if (level === 2) orderCol = 'p.level2_score';
     if (level >= 3) orderCol = 'p.level3_score';
-    if (level === 2) where = 'WHERE p.is_qualified_level2 = 1';
     if (level >= 3) where = 'WHERE p.is_qualified_level3 = 1';
 
     return this.db.prepare(`
@@ -538,12 +596,13 @@ export class DatabaseManager {
       LEFT JOIN (
         SELECT player_id, COUNT(*) as completed_pipes
         FROM pipe_quest_answers
+        WHERE level = ?
         GROUP BY player_id
       ) pq ON pq.player_id = p.id
       ${where}
       ORDER BY ${orderCol} DESC, p.id ASC
       LIMIT ?
-    `).all(limit) as unknown as Player[];
+    `).all(level, limit) as unknown as Player[];
   }
 
   executeCutoffLevel2(topN = 50) { return this.prepareCutoff(2, topN); }
@@ -583,8 +642,7 @@ export class DatabaseManager {
     const existing = this.getCutoffState(level);
     if (existing) return { qualifiedCount: existing.safeIds.length, pendingCount: existing.pendingIds.length, status: existing.status };
     const scoreColumn = level === 2 ? 'level1_score' : 'level2_score';
-    const where = level === 2 ? '' : 'WHERE is_qualified_level2 = 1';
-    const rows = this.db.prepare(`SELECT id, ${scoreColumn} AS score FROM players ${where} ORDER BY score DESC, id ASC`).all() as { id: string; score: number }[];
+    const rows = this.db.prepare(`SELECT id, ${scoreColumn} AS score FROM players ORDER BY score DESC, id ASC`).all() as { id: string; score: number }[];
     if (!rows.length) throw new Error('No players available for cut-off');
     const count = Math.min(topN, rows.length);
     const boundary = rows[count - 1].score;

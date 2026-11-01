@@ -7,7 +7,7 @@ const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""'
 
 export const HostView: React.FC = () => {
   const {
-    isConnected, isAuthenticated, gameState, counts, pipeReadyCount, leaderboard, finalists,
+    isConnected, isAuthenticated, gameState, counts, pipeReadyCount, totalPipes, leaderboard, finalists,
     lastError, clearError, send, speakerRemainingMs,
     cutoff, judgeNames, judgeReadiness, judgeMatrix, authenticateHost
   } = useGameSocket('HOST');
@@ -26,7 +26,7 @@ export const HostView: React.FC = () => {
 
   const startLevel = (level: number) => send({ type: 'HOST_START_LEVEL', level });
   const exportResults = () => {
-    const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 points', 'Level 2 points', 'Final rubric /20', 'Qualified for Level 2', 'Finalist'],
+    const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 points', 'Level 2 points', 'Final rubric /20', 'Level 1 top 50', 'Finalist'],
       ...leaderboard.map((p, index) => [index + 1, p.student_id, p.name, p.level1_score, p.level2_score,
         p.level3_score, p.is_qualified_level2 ? 'Yes' : 'No', p.is_qualified_level3 ? 'Yes' : 'No'])];
     const blob = new Blob([rows.map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -91,10 +91,12 @@ export const HostView: React.FC = () => {
               </button>
               <button
                 onClick={() => startLevel(2)}
-                disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE' || gameState.current_level === 2}
+                disabled={gameState.current_level !== 1 ||
+                  (gameState.game_status !== 'LEVEL_LEADERBOARD' &&
+                   (cutoff?.level !== 2 || cutoff.status !== 'COMPLETE'))}
                 className="event-button bg-blue-600 hover:bg-blue-500 font-pixel text-xs py-3 disabled:opacity-40"
               >
-                ▶ Start Level 2 (Top 50)
+                ▶ Start Level 2 (All Players)
               </button>
               <button
                 onClick={() => send({ type: 'HOST_START_BOWSER_STAGE' })}
@@ -125,7 +127,7 @@ export const HostView: React.FC = () => {
                     LEVEL 1 IS LIVE (WORLD 1-1)
                   </span>
                   <span className="text-xs font-mono text-green-300 bg-green-900/60 px-2.5 py-0.5 rounded border border-green-600">
-                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / {counts.total} Cleared
+                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= totalPipes).length} / {counts.total} Cleared
                   </span>
                 </div>
                 <p className="text-xs text-green-100/90 leading-relaxed">
@@ -142,11 +144,11 @@ export const HostView: React.FC = () => {
                     LEVEL 2 IS LIVE (WORLD 2-1)
                   </span>
                   <span className="text-xs font-mono text-blue-300 bg-blue-900/60 px-2.5 py-0.5 rounded border border-blue-600">
-                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / 50 Cleared
+                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= totalPipes).length} / {counts.total} Cleared
                   </span>
                 </div>
                 <p className="text-xs text-blue-100/90 leading-relaxed">
-                  Top 50 qualifiers are competing in Level 2. The top 10 from this round advance to the Bowser Boss Stage!
+                  All registered players can answer {totalPipes} pipe questions in Level 2, including players outside the Level 1 top 50. The top 10 by Level 2 score advance to the Bowser Boss Stage!
                 </p>
               </div>
             )}
@@ -183,7 +185,7 @@ export const HostView: React.FC = () => {
                       }}
                       className="event-button bg-purple-700 hover:bg-purple-600 flex items-center justify-center gap-2 text-xs"
                     >
-                      <CheckCircle2 size={16} /> End L1 & Select Top 50
+                      <CheckCircle2 size={16} /> End L1 & Record Top 50
                     </button>
                   )}
 
