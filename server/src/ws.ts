@@ -119,12 +119,6 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         case 'HOST_VERIFY_RESULTS': gameManager.verifyResults(); break;
         case 'HOST_FINISH_AND_PODIUM': gameManager.finishAndShowPodium(); break;
         case 'HOST_RESET_GAME': gameManager.resetGame(Boolean(data.wipePlayers)); break;
-        case 'HOST_RECOVER_PLAYER': {
-          const { sessionToken, playerId } = dbManager.reissueSession(String(data.studentId));
-          gameManager.disconnectPlayer(playerId);
-          send({ type: 'RECOVERY_TOKEN', studentId: String(data.studentId), sessionToken });
-          break;
-        }
         default: throw new Error(`Unknown host action: ${type}`);
       }
     } catch (error) {

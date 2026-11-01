@@ -10,7 +10,6 @@ export const PlayerView: React.FC = () => {
   const [studentId, setStudentId] = useState('');
   const [name, setName] = useState('');
   const [avatarId, setAvatarId] = useState<'mario' | 'luigi'>('mario');
-  const [recoveryInput, setRecoveryInput] = useState('');
 
   if (socket.isReconnecting) {
     return (
@@ -143,24 +142,16 @@ export const PlayerView: React.FC = () => {
           )}
           <form className="mt-5 space-y-4" onSubmit={event => { event.preventDefault(); socket.joinAsPlayer(studentId.trim(), name.trim(), avatarId); }}>
             <label className="block text-sm font-bold" htmlFor="student-id">
-              Student ID / roll number
-              <input id="student-id" required minLength={3} maxLength={80} value={studentId} onChange={event => setStudentId(event.target.value.toUpperCase())} placeholder="e.g. 23BCS041" className="mt-2 w-full rounded-lg border-2 border-slate-500 bg-slate-950 p-3 text-base text-white" />
+              Enrolment number / student email
+              <input id="student-id" required minLength={3} maxLength={80} autoCapitalize="characters" spellCheck={false} aria-describedby="enrolment-help" value={studentId} onChange={event => setStudentId(event.target.value.toUpperCase())} placeholder="e.g. S24CSEU1234" className="mt-2 w-full rounded-lg border-2 border-slate-500 bg-slate-950 p-3 text-base text-white" />
             </label>
+            <p id="enrolment-help" className="text-xs text-slate-300">One registration per enrolment number. If you already joined, reopen this game in the same browser.</p>
             <label className="block text-sm font-bold" htmlFor="player-name">
               Display name
               <input id="player-name" required minLength={2} maxLength={60} value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Aarav Sharma" className="mt-2 w-full rounded-lg border-2 border-slate-500 bg-slate-950 p-3 text-base text-white" />
             </label>
             <button disabled={!socket.isConnected} className="min-h-14 w-full rounded-xl border-2 border-yellow-300 bg-red-600 px-4 py-3 font-pixel text-sm text-white disabled:opacity-50">
               {socket.isConnected ? 'JOIN LOBBY ▶' : 'CONNECTING…'}
-            </button>
-          </form>
-          <form className="mt-5 border-t border-slate-600 pt-4" onSubmit={event => { event.preventDefault(); if (recoveryInput.trim()) socket.reconnectWithToken(recoveryInput.trim()); }}>
-            <label className="block text-xs text-slate-200" htmlFor="recover-token">
-              Recovery token from host
-              <input id="recover-token" value={recoveryInput} onChange={event => setRecoveryInput(event.target.value)} placeholder="Paste token here" className="mt-2 w-full rounded-lg border border-slate-500 bg-slate-950 p-3 text-sm text-white" />
-            </label>
-            <button disabled={!recoveryInput.trim() || !socket.isConnected} className="mt-3 min-h-11 w-full rounded-lg bg-blue-700 px-4 text-sm font-bold disabled:opacity-50">
-              Restore my game
             </button>
           </form>
         </div>

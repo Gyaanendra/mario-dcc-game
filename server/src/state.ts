@@ -73,7 +73,6 @@ export class GameManager {
       this.broadcastPipeReadyCount();
     }
   }
-  disconnectPlayer(id: string) { this.playerSockets.get(id)?.close(4002, 'Session moved to another phone'); }
   registerHostSocket(ws: WebSocket) { this.hostSockets.add(ws); this.sendHostSync(ws); }
   unregisterHostSocket(ws: WebSocket) { this.hostSockets.delete(ws); }
   registerProjectorSocket(ws: WebSocket) { this.projectorSockets.add(ws); this.sendProjectorSync(ws); }

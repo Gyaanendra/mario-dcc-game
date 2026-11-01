@@ -253,24 +253,32 @@ export class DatabaseManager {
 
   // --- Player Methods ---
   createPlayer(studentId: string, name: string, avatarId: string): { player: Player; sessionToken: string } {
-    const normalizedId = studentId.trim().toUpperCase();
+    const enteredId = String(studentId ?? '').trim().toUpperCase();
+    const isEmail = enteredId.includes('@');
+    const normalizedId = isEmail ? enteredId : enteredId.replace(/[\s._-]/g, '');
     const normalizedName = name.trim();
-    if (!/^[A-Z0-9@._-]{3,80}$/.test(normalizedId) || normalizedName.length < 2 || normalizedName.length > 60) {
-      throw new Error('Enter a valid roll number or email and a display name of 2–60 characters');
+    if (enteredId.length > 80 || !/^[A-Z0-9@._-]{3,80}$/.test(normalizedId) || normalizedName.length < 2 || normalizedName.length > 60) {
+      throw new Error('Enter a valid enrolment number or email and a display name of 2–60 characters');
     }
-    const existing = this.db.prepare(`
-      SELECT *, (level1_score + level2_score) as total_coins
-      FROM players WHERE student_id = ?
-    `).get(normalizedId) as unknown as Player | undefined;
+    const duplicateMessage = 'This enrolment number or email is already registered. Continue on the original device and browser.';
+    const existing = this.db.prepare(isEmail
+      ? 'SELECT 1 FROM players WHERE student_id = ? LIMIT 1'
+      : `SELECT 1 FROM players WHERE UPPER(REPLACE(REPLACE(REPLACE(REPLACE(student_id, ' ', ''), '-', ''), '_', ''), '.', '')) = ? LIMIT 1`
+    ).get(normalizedId);
 
-    if (existing) throw new Error('This roll number is already registered. Reopen the original phone to reconnect, or ask the event host for help.');
+    if (existing) throw new Error(duplicateMessage);
 
     const id = crypto.randomUUID();
     const sessionToken = randomBytes(32).toString('base64url');
-    this.db.prepare(`
-      INSERT INTO players (id, student_id, name, avatar_id, is_connected, level1_score, level2_score, level3_score, is_qualified_level2, is_qualified_level3, session_token_hash)
-      VALUES (?, ?, ?, ?, 1, 0, 0, 0, 0, 0, ?)
-    `).run(id, normalizedId, normalizedName, avatarId === 'luigi' ? 'luigi' : 'mario', tokenHash(sessionToken));
+    try {
+      this.db.prepare(`
+        INSERT INTO players (id, student_id, name, avatar_id, is_connected, level1_score, level2_score, level3_score, is_qualified_level2, is_qualified_level3, session_token_hash)
+        VALUES (?, ?, ?, ?, 1, 0, 0, 0, 0, 0, ?)
+      `).run(id, normalizedId, normalizedName, avatarId === 'luigi' ? 'luigi' : 'mario', tokenHash(sessionToken));
+    } catch (error) {
+      if (error instanceof Error && /UNIQUE constraint failed: players\.student_id/.test(error.message)) throw new Error(duplicateMessage);
+      throw error;
+    }
 
     return { player: this.getPlayerById(id)!, sessionToken };
   }
@@ -281,17 +289,6 @@ export class DatabaseManager {
       SELECT *, (level1_score + level2_score) as total_coins
       FROM players WHERE session_token_hash = ?
     `).get(tokenHash(token)) as unknown as Player | undefined;
-  }
-
-  reissueSession(studentId: string): { sessionToken: string; playerId: string } {
-    const normalizedId = studentId.trim().toUpperCase();
-    const row = this.db.prepare('SELECT id FROM players WHERE student_id = ?').get(normalizedId) as { id: string } | undefined;
-    if (!row) throw new Error('Player not found');
-    const token = randomBytes(32).toString('base64url');
-    const result = this.db.prepare('UPDATE players SET session_token_hash = ? WHERE student_id = ?')
-      .run(tokenHash(token), normalizedId);
-    if (!result.changes) throw new Error('Player not found');
-    return { sessionToken: token, playerId: row.id };
   }
 
   getPlayerById(id: string): Player | undefined {

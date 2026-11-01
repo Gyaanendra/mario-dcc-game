@@ -133,7 +133,6 @@ export type HostMessageType =
   | 'HOST_SUBMIT_FINAL_TIEBREAK'
   | 'HOST_VERIFY_RESULTS'
   | 'HOST_FINISH_AND_PODIUM'
-  | 'HOST_RECOVER_PLAYER'
   | 'HOST_RESET_GAME';
 
 export type ServerBroadcastType =

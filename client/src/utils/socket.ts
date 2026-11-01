@@ -85,7 +85,6 @@ export interface SocketHookState {
   judgeMatrix: JudgeScore[];
   levelQuestions: QuestionData[];
   publicJoinUrl: string | null;
-  recoveryToken: { studentId: string; sessionToken: string } | null;
   lastError: string | null;
   remainingSeconds: number;
   speakerRemainingMs: number;
@@ -95,7 +94,6 @@ export interface SocketHookState {
   submitPipeQuestAnswer: (pipeIndex: number, questionId: number, selectedOption: string) => void;
   clearPipeQuestResult: () => void;
   authenticateHost: (pin: string) => void;
-  reconnectWithToken: (token: string) => void;
   clearError: () => void;
 }
 const initialGameState: GameState = {
@@ -134,7 +132,6 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [judgeMatrix, setJudgeMatrix] = useState<JudgeScore[]>([]);
   const [levelQuestions, setLevelQuestions] = useState<QuestionData[]>([]);
   const [publicJoinUrl, setPublicJoinUrl] = useState<string | null>(null);
-  const [recoveryToken, setRecoveryToken] = useState<SocketHookState['recoveryToken']>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [speakerRemainingMs, setSpeakerRemainingMs] = useState(120000);
@@ -155,12 +152,7 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
         if (pin) ws.send(JSON.stringify({ type: 'HOST_AUTH', pin }));
       }
       if (viewRole === 'PLAYER') {
-        const linkedToken = new URLSearchParams(window.location.search).get('session');
-        if (linkedToken) {
-          localStorage.setItem('mcq_session_token', linkedToken);
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-        const sessionToken = linkedToken || localStorage.getItem('mcq_session_token');
+        const sessionToken = localStorage.getItem('mcq_session_token');
         if (sessionToken) {
           setIsReconnecting(true);
           ws.send(JSON.stringify({ type: 'CLIENT_RECONNECT', sessionToken }));
@@ -220,7 +212,6 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
             nextPipeIndex: data.nextPipeIndex, question: data.question }); break;
           case 'PIPE_QUEST_RESULT': setPipeQuestResult(data); setPipeQuestPending(false); break;
           case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
-          case 'RECOVERY_TOKEN': setRecoveryToken({ studentId: data.studentId, sessionToken: data.sessionToken }); break;
           case 'ERROR_MSG': setAnswerPending(false); setPipeQuestPending(false); setLastError(data.message); break;
         }
       } catch (error) { console.error('[WS message]', error); }
@@ -270,17 +261,12 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const authenticateHost = useCallback((pin: string) => {
     if (send({ type: 'HOST_AUTH', pin })) sessionStorage.setItem('mcq_host_pin', pin);
   }, [send]);
-  const reconnectWithToken = useCallback((sessionToken: string) => {
-    localStorage.setItem('mcq_session_token', sessionToken);
-    setIsReconnecting(true);
-    send({ type: 'CLIENT_RECONNECT', sessionToken });
-  }, [send]);
   const clearError = useCallback(() => setLastError(null), []);
 
   return { isConnected, isAuthenticated, isReconnecting, answerPending, gameState, player, activeQuestion,
     myAnswer, canAnswer, isSpectator, tiePending, answerStats, leaderboard, podium, finalists, counts, pipeReadyCount,
     pipeQuest, pipeQuestResult, pipeQuestPending, cutoff, judgeNames,
-    judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, recoveryToken, lastError, remainingSeconds, speakerRemainingMs,
+    judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, lastError, remainingSeconds, speakerRemainingMs,
     send, joinAsPlayer, submitAnswer, submitPipeQuestAnswer, clearPipeQuestResult,
-    authenticateHost, reconnectWithToken, clearError };
+    authenticateHost, clearError };
 }
