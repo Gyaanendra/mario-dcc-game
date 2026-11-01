@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { useGameSocket } from '../utils/socket';
 import { FINAL_FOLLOW_UP } from '../utils/gameContent';
-import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Download, Lock, Play, RotateCcw, ShieldCheck, Trash2, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Download, Lock, Pause, Play, RotateCcw, ShieldCheck, Trash2, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
 
 const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
 export const HostView: React.FC = () => {
   const {
-    isConnected, isAuthenticated, gameState, answerStats, counts, pipeReadyCount, leaderboard, finalists,
-    activeQuestion, lastError, clearError, send, remainingSeconds, speakerRemainingMs,
-    levelQuestions, cutoff, judgeNames, judgeReadiness, judgeMatrix, recoveryToken, authenticateHost
+    isConnected, isAuthenticated, gameState, counts, pipeReadyCount, leaderboard, finalists,
+    lastError, clearError, send, speakerRemainingMs,
+    cutoff, judgeNames, judgeReadiness, judgeMatrix, recoveryToken, authenticateHost
   } = useGameSocket('HOST');
   const [pin, setPin] = useState('');
-  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
   const [selectedFinalistId, setSelectedFinalistId] = useState('');
   const [judgeName, setJudgeName] = useState('');
   const [clarity, setClarity] = useState(3);
@@ -23,17 +22,10 @@ export const HostView: React.FC = () => {
   const [tieRound, setTieRound] = useState(1);
   const [recoveryId, setRecoveryId] = useState('');
 
-  const currentQuestionId = levelQuestions.some(q => q.id === selectedQuestionId) ? selectedQuestionId : levelQuestions[0]?.id ?? null;
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
 
   const startLevel = (level: number) => send({ type: 'HOST_START_LEVEL', level });
-  const launchQuestion = (id: number | null) => { if (id) send({ type: 'HOST_OPEN_QUESTION', questionId: id }); };
-  const nextQuestion = levelQuestions[levelQuestions.findIndex(q => q.id === activeQuestion?.id) + 1];
-  const answered = answerStats?.total || 0;
-  const activeParticipants = gameState.sudden_death_active && cutoff?.status === 'PENDING'
-    ? cutoff.pendingIds.length : gameState.current_level === 2 ? Math.min(50, counts.total) : counts.total;
-  const questionRunning = gameState.game_status === 'QUESTION_ACTIVE' || gameState.game_status === 'PAUSED';
   const exportResults = () => {
     const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 points', 'Level 2 points', 'Final rubric /20', 'Qualified for Level 2', 'Finalist'],
       ...leaderboard.map((p, index) => [index + 1, p.student_id, p.name, p.level1_score, p.level2_score,
@@ -78,59 +70,206 @@ export const HostView: React.FC = () => {
       <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)] gap-5">
         <div className="space-y-5">
           <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="round-controls">
-            <h2 id="round-controls" className="font-pixel text-sm text-yellow-300">ROUND CONTROL</h2>
-            <p className="text-sm text-slate-200">Scoring: 100 points per correct answer plus up to 20 speed points. Level 2 starts fresh. Finalists are judged separately.</p>
-            <p className="text-sm text-sky-200">Ask players to stand on a pipe before opening a question. The header shows how many are ready.</p>
-            <div className="grid sm:grid-cols-3 gap-3">
-              <button onClick={() => startLevel(1)} disabled={gameState.game_status !== 'LOBBY'} className="event-button bg-red-600 font-pixel text-xs py-3 disabled:opacity-40">▶ Start Level 1</button>
-              <button onClick={() => startLevel(2)} disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE'} className="event-button bg-blue-600 font-pixel text-xs py-3 disabled:opacity-40">▶ Start Level 2</button>
-              <button onClick={() => send({ type: 'HOST_START_BOWSER_STAGE' })} disabled={cutoff?.level !== 3 || cutoff.status !== 'COMPLETE'} className="event-button bg-purple-700 font-pixel text-xs py-3 disabled:opacity-40">▶ Bowser Boss Stage</button>
+            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+              <h2 id="round-controls" className="font-pixel text-sm text-yellow-300">ROUND & LEVEL CONTROL</h2>
+              <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-yellow-500/20 text-yellow-300 border border-yellow-400/40">
+                {gameState.game_status.replaceAll('_', ' ')}
+              </span>
             </div>
-            {gameState.current_level === 1 && gameState.game_status !== 'LOBBY' && (
-              <div className="p-3 bg-green-950/80 border border-green-500 rounded-lg text-sm text-green-200">
-                <span className="font-bold text-yellow-300">● LEVEL 1 IS LIVE:</span> Players are running through World 1-1 and solving pillar questions. Projector displays live leaderboard.
-                <div className="mt-2 text-xs font-mono text-white">Finished Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / {counts.total} Players</div>
+
+            <p className="text-xs text-slate-300">
+              Students play self-paced inside the 2D Mario World runner. Each pillar contains a career challenge (100 coins + speed bonus). Flagpole awards completion bonus.
+            </p>
+
+            {/* LEVEL START BUTTONS */}
+            <div className="grid sm:grid-cols-3 gap-3">
+              <button
+                onClick={() => startLevel(1)}
+                disabled={gameState.game_status !== 'LOBBY'}
+                className="event-button bg-red-600 hover:bg-red-500 font-pixel text-xs py-3 disabled:opacity-40"
+              >
+                ▶ Start Level 1
+              </button>
+              <button
+                onClick={() => startLevel(2)}
+                disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE' || gameState.current_level === 2}
+                className="event-button bg-blue-600 hover:bg-blue-500 font-pixel text-xs py-3 disabled:opacity-40"
+              >
+                ▶ Start Level 2 (Top 50)
+              </button>
+              <button
+                onClick={() => send({ type: 'HOST_START_BOWSER_STAGE' })}
+                disabled={cutoff?.level !== 3 || cutoff.status !== 'COMPLETE' || gameState.game_status === 'BOWSER_STAGE'}
+                className="event-button bg-purple-700 hover:bg-purple-600 font-pixel text-xs py-3 disabled:opacity-40"
+              >
+                ▶ Bowser Boss Stage
+              </button>
+            </div>
+
+            {/* LIVE LEVEL STATUS & TELEMETRY */}
+            {gameState.game_status === 'LOBBY' && (
+              <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-yellow-300 font-pixel text-xs">
+                  <Clock size={16} /> WAITING IN LOBBY
+                </div>
+                <p className="text-xs text-slate-300">
+                  {counts.connected} / {counts.total} players connected in the waiting room. Click <strong>"▶ Start Level 1"</strong> above to launch the 2D runner on everyone's screens!
+                </p>
               </div>
             )}
-            {gameState.current_level <= 2 && <div className="space-y-3 border-t border-slate-600 pt-4">
-              <label htmlFor="question-select" className="block font-semibold text-sm">Question to open</label>
-              <select id="question-select" value={currentQuestionId ?? ''} onChange={e => setSelectedQuestionId(Number(e.target.value))} className="w-full bg-slate-950 border-2 border-slate-500 rounded-lg p-3 text-sm">
-                {levelQuestions.map((q, i) => <option key={q.id} value={q.id}>{q.is_practice ? 'Practice' : `Question ${i}`} · {q.prompt}</option>)}
-              </select>
-              <div className="flex flex-wrap gap-3">
-                <button onClick={() => launchQuestion(currentQuestionId)} disabled={!currentQuestionId || gameState.game_status === 'QUESTION_ACTIVE' || gameState.game_status === 'PAUSED'} className="event-button bg-green-700 disabled:opacity-40"><Play size={17} /> Open selected</button>
-                <button onClick={() => launchQuestion(nextQuestion?.id)} disabled={!nextQuestion || gameState.game_status === 'QUESTION_ACTIVE' || gameState.game_status === 'PAUSED'} className="event-button bg-blue-700 disabled:opacity-40">Next question</button>
+
+            {gameState.current_level === 1 && gameState.game_status !== 'LOBBY' && (
+              <div className="p-4 bg-green-950/70 border-2 border-green-500/80 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-yellow-300 flex items-center gap-2 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />
+                    LEVEL 1 IS LIVE (WORLD 1-1)
+                  </span>
+                  <span className="text-xs font-mono text-green-300 bg-green-900/60 px-2.5 py-0.5 rounded border border-green-600">
+                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / {counts.total} Cleared
+                  </span>
+                </div>
+                <p className="text-xs text-green-100/90 leading-relaxed">
+                  Students are jumping on pillars, answering career challenges, and racing to the flagpole. Projector displays the live real-time leaderboard.
+                </p>
               </div>
-              {activeQuestion && <div className="bg-slate-950 border border-slate-600 rounded-lg p-4 text-sm"><b>Live: {activeQuestion.prompt}</b><p className="text-yellow-300 mt-2">Host answer key: {activeQuestion.correct_option}</p></div>}
-            </div>}
+            )}
+
+            {gameState.current_level === 2 && gameState.game_status !== 'LOBBY' && (
+              <div className="p-4 bg-blue-950/70 border-2 border-blue-500/80 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-yellow-300 flex items-center gap-2 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping" />
+                    LEVEL 2 IS LIVE (WORLD 2-1)
+                  </span>
+                  <span className="text-xs font-mono text-blue-300 bg-blue-900/60 px-2.5 py-0.5 rounded border border-blue-600">
+                    Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / 50 Cleared
+                  </span>
+                </div>
+                <p className="text-xs text-blue-100/90 leading-relaxed">
+                  Top 50 qualifiers are competing in Level 2. The top 10 from this round advance to the Bowser Boss Stage!
+                </p>
+              </div>
+            )}
+
+            {/* LIVE GAME CONTROLS (Pause, Resume, Cut-offs, Show Leaderboard) */}
+            {gameState.current_level >= 1 && gameState.game_status !== 'BOWSER_STAGE' && gameState.game_status !== 'PODIUM_WINNERS' && (
+              <div className="space-y-3 border-t border-slate-700 pt-4">
+                <div className="font-pixel text-xs text-yellow-300">LIVE GAME CONTROLS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* Pause / Resume Button */}
+                  {gameState.game_status === 'PAUSED' ? (
+                    <button
+                      onClick={() => send({ type: 'HOST_RESUME_TIMER' })}
+                      className="event-button bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 text-xs"
+                    >
+                      <Play size={16} /> Resume Game
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => send({ type: 'HOST_PAUSE_TIMER' })}
+                      className="event-button bg-amber-600 hover:bg-amber-500 flex items-center justify-center gap-2 text-xs"
+                    >
+                      <Pause size={16} /> Pause Game
+                    </button>
+                  )}
+
+                  {/* Cut-off Buttons */}
+                  {gameState.current_level === 1 && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('End Level 1 and select the top 50 players by score?')) {
+                          send({ type: 'HOST_CUTOFF_L2' });
+                        }
+                      }}
+                      className="event-button bg-purple-700 hover:bg-purple-600 flex items-center justify-center gap-2 text-xs"
+                    >
+                      <CheckCircle2 size={16} /> End L1 & Select Top 50
+                    </button>
+                  )}
+
+                  {gameState.current_level === 2 && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('End Level 2 and select the top 10 finalists by Level 2 score?')) {
+                          send({ type: 'HOST_CUTOFF_L3' });
+                        }
+                      }}
+                      className="event-button bg-purple-700 hover:bg-purple-600 flex items-center justify-center gap-2 text-xs"
+                    >
+                      <CheckCircle2 size={16} /> End L2 & Select Top 10
+                    </button>
+                  )}
+
+                  {/* Show Leaderboard on Projector */}
+                  <button
+                    onClick={() => send({ type: 'HOST_SHOW_LEADERBOARD' })}
+                    className="event-button bg-slate-700 hover:bg-slate-600 flex items-center justify-center gap-2 text-xs"
+                  >
+                    <Trophy size={16} /> Projector Leaderboard
+                  </button>
+                </div>
+
+                {/* Tie / Sudden Death Notification */}
+                {cutoff?.status === 'PENDING' && (
+                  <div className="bg-amber-950 border-2 border-amber-400 rounded-lg p-4 space-y-2">
+                    <p className="font-semibold text-sm text-yellow-300">
+                      ⚠️ Cut-off tie: {cutoff.pendingIds.length} players tied for the last {cutoff.targetCount - cutoff.safeIds.length} qualifying spot(s)!
+                    </p>
+                    <button
+                      onClick={() => send({ type: 'HOST_TRIGGER_SUDDEN_DEATH' })}
+                      className="event-button bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs"
+                    >
+                      Open Sudden-Death Tiebreaker Question
+                    </button>
+                  </div>
+                )}
+
+                {cutoff?.status === 'COMPLETE' && (
+                  <div className="p-3 bg-green-950/60 border border-green-500/80 rounded-lg text-xs text-green-300 flex items-center gap-2">
+                    <CheckCircle2 size={18} className="text-green-400" />
+                    <span><strong>{cutoff.safeIds.length} Qualifiers Confirmed!</strong> Export CSV or proceed to next round.</span>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
-          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="timer-controls">
-            <div className="flex items-center justify-between gap-3"><h2 id="timer-controls" className="font-pixel text-sm text-yellow-300">QUESTION TIMER</h2><span className="font-pixel text-2xl text-white">{remainingSeconds}s</span></div>
-            <p className="text-sm text-slate-200">{answered} / {activeParticipants} answers received</p>
-            <div className="h-3 bg-slate-900 rounded-full overflow-hidden"><div className="h-full bg-yellow-400" style={{ width: `${Math.min(100, activeParticipants ? answered / activeParticipants * 100 : 0)}%` }} /></div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button onClick={() => send({ type: gameState.timer_paused ? 'HOST_RESUME_TIMER' : 'HOST_PAUSE_TIMER' })} disabled={!questionRunning} className="event-button bg-slate-700 disabled:opacity-40">{gameState.timer_paused ? 'Resume' : 'Pause'}</button>
-              <button onClick={() => send({ type: 'HOST_EXTEND_TIMER', seconds: 10 })} disabled={!questionRunning} className="event-button bg-slate-700 disabled:opacity-40">+10 seconds</button>
-              <button onClick={() => send({ type: 'HOST_LOCK_QUESTION' })} disabled={!questionRunning} className="event-button bg-amber-700 disabled:opacity-40">Lock</button>
-              <button onClick={() => send({ type: 'HOST_REVEAL_ANSWER' })} disabled={gameState.game_status !== 'QUESTION_LOCKED'} className="event-button bg-blue-700 disabled:opacity-40">Reveal</button>
-            </div>
-            {['QUESTION_LOCKED', 'REVEAL'].includes(gameState.game_status) && !gameState.sudden_death_active && <button onClick={() => { if (window.confirm('Void this question, remove its awarded points, and make it available to replay?')) send({ type: 'HOST_VOID_QUESTION' }); }} className="text-amber-300 underline text-sm">Void question and allow replay</button>}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-t border-slate-600 pt-4">
-              <button onClick={() => send({ type: 'HOST_SHOW_LEADERBOARD' })} disabled={questionRunning || gameState.current_level > 2} className="event-button bg-slate-700 disabled:opacity-40"><Trophy size={17} /> Leaderboard</button>
-              <button onClick={() => { if (window.confirm('Review and select the top 50 by Level 1 score?')) send({ type: 'HOST_CUTOFF_L2' }); }} disabled={gameState.current_level !== 1 || questionRunning} className="event-button bg-purple-700 disabled:opacity-40">Top 50 cut-off</button>
-              <button onClick={() => { if (window.confirm('Review and select the top 10 by Level 2 score only?')) send({ type: 'HOST_CUTOFF_L3' }); }} disabled={gameState.current_level !== 2 || questionRunning} className="event-button bg-purple-700 disabled:opacity-40">Top 10 cut-off</button>
-            </div>
-            {cutoff?.status === 'PENDING' && <div className="bg-amber-950 border-2 border-amber-400 rounded-lg p-4 space-y-3"><p className="font-semibold">Cut-off tie: {cutoff.pendingIds.length} players compete for {cutoff.targetCount - cutoff.safeIds.length} place(s).</p><button onClick={() => send({ type: 'HOST_TRIGGER_SUDDEN_DEATH' })} className="event-button bg-amber-600 text-black">Open sudden-death question</button></div>}
-            {cutoff?.status === 'COMPLETE' && <p className="flex items-center gap-2 text-green-300"><CheckCircle2 size={18} /> {cutoff.safeIds.length} qualifiers selected. Export CSV for independent verification.</p>}
-          </section>
-
+          {/* BOSS STAGE SECTION */}
           <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="final-controls">
-            <h2 id="final-controls" className="font-pixel text-sm text-purple-300">BOSS STAGE</h2>
-            <label htmlFor="speaker" className="block text-sm font-semibold">Current speaker</label>
-            <select id="speaker" value={gameState.speaker_id || ''} onChange={e => send({ type: 'HOST_SELECT_SPEAKER', finalist_id: e.target.value })} className="w-full bg-slate-950 border-2 border-slate-500 rounded-lg p-3 text-sm"><option value="">Select finalist</option>{finalists.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-            <p className="text-sm">{selectedSpeaker?.name || 'No speaker selected'} · <strong className="font-pixel text-lg text-yellow-300">{Math.floor(speakerRemainingMs / 60000)}:{String(Math.ceil(speakerRemainingMs / 1000) % 60).padStart(2, '0')}</strong></p>
-            <div className="flex flex-wrap gap-2"><button onClick={() => send({ type: gameState.speaker_running ? 'HOST_SPEAKER_PAUSE' : 'HOST_SPEAKER_START' })} disabled={gameState.game_status !== 'BOWSER_STAGE' || !gameState.speaker_id} className="event-button bg-purple-700 disabled:opacity-40">{gameState.speaker_running ? 'Pause speaker' : 'Start speaker'}</button><button onClick={() => send({ type: 'HOST_SPEAKER_RESET' })} disabled={gameState.game_status !== 'BOWSER_STAGE'} className="event-button bg-slate-700 disabled:opacity-40"><Clock size={16} /> Reset 2:00</button></div>
+            <h2 id="final-controls" className="font-pixel text-sm text-purple-300">STAGE 3: BOWSER BOSS ARENA (TOP 10)</h2>
+            <label htmlFor="speaker" className="block text-sm font-semibold">Current Finalist Speaker</label>
+            <select
+              id="speaker"
+              value={gameState.speaker_id || ''}
+              onChange={e => send({ type: 'HOST_SELECT_SPEAKER', finalist_id: e.target.value })}
+              className="w-full bg-slate-950 border-2 border-slate-500 rounded-lg p-3 text-sm"
+            >
+              <option value="">Select finalist to present</option>
+              {finalists.map(f => <option key={f.id} value={f.id}>{f.name} ({f.student_id})</option>)}
+            </select>
+            <p className="text-sm">
+              {selectedSpeaker?.name || 'No speaker selected'} ·{' '}
+              <strong className="font-pixel text-lg text-yellow-300">
+                {Math.floor(speakerRemainingMs / 60000)}:{String(Math.ceil(speakerRemainingMs / 1000) % 60).padStart(2, '0')}
+              </strong>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => send({ type: gameState.speaker_running ? 'HOST_SPEAKER_PAUSE' : 'HOST_SPEAKER_START' })}
+                disabled={gameState.game_status !== 'BOWSER_STAGE' || !gameState.speaker_id}
+                className="event-button bg-purple-700 disabled:opacity-40"
+              >
+                {gameState.speaker_running ? 'Pause speaker' : 'Start 2:00 timer'}
+              </button>
+              <button
+                onClick={() => send({ type: 'HOST_SPEAKER_RESET' })}
+                disabled={gameState.game_status !== 'BOWSER_STAGE'}
+                className="event-button bg-slate-700 disabled:opacity-40"
+              >
+                <Clock size={16} /> Reset 2:00
+              </button>
+            </div>
           </section>
         </div>
 

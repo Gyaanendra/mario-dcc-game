@@ -307,16 +307,28 @@ export class GameManager {
   }
   pauseTimer() {
     const state = this.db.getGameState();
-    if (state.game_status !== 'QUESTION_ACTIVE') throw new Error('No active question to pause');
-    this.db.updateGameState({ game_status: 'PAUSED', remaining_ms: this.remainingMs(state), deadline_at: null, paused_at: Date.now() });
+    if (state.game_status === 'PAUSED') return;
+    this.db.updateGameState({
+      game_status: 'PAUSED',
+      remaining_ms: this.remainingMs(state),
+      deadline_at: null,
+      paused_at: Date.now()
+    });
     this.broadcastSyncToAll();
   }
   resumeTimer() {
     const state = this.db.getGameState();
-    if (state.game_status !== 'PAUSED') throw new Error('Question is not paused');
+    if (state.game_status !== 'PAUSED') return;
     const now = Date.now();
-    this.db.updateGameState({ game_status: 'QUESTION_ACTIVE', deadline_at: now + state.remaining_ms,
-      question_start_time: (state.question_start_time || now) + now - (state.paused_at || now), paused_at: null });
+    const resumeStatus = state.active_question_id
+      ? 'QUESTION_ACTIVE'
+      : (state.current_level >= 1 ? 'LEVEL_INTRO' : 'LOBBY');
+    this.db.updateGameState({
+      game_status: resumeStatus,
+      deadline_at: state.remaining_ms ? now + state.remaining_ms : null,
+      question_start_time: state.question_start_time ? (state.question_start_time + now - (state.paused_at || now)) : null,
+      paused_at: null
+    });
     this.broadcastSyncToAll();
   }
   extendTimer(seconds = 10) {
@@ -356,18 +368,26 @@ export class GameManager {
   }
   showLeaderboard() {
     const state = this.db.getGameState();
-    if (state.game_status === 'QUESTION_ACTIVE' || state.game_status === 'PAUSED') throw new Error('Lock the question first');
-    if (this.db.getPlayedQuestionIds(state.current_level).length < this.db.countQuestionsInLevel(state.current_level))
+    if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the question first');
+    const played = this.db.getPlayedQuestionIds(state.current_level).length;
+    const total = this.db.countQuestionsInLevel(state.current_level);
+    const hasRunnerAnswers = this.db.hasPipeQuestAnswers();
+    if (!hasRunnerAnswers && played < total) {
       throw new Error('Complete every scored question in this level before the cut-off');
+    }
     this.db.updateGameState({ game_status: 'LEVEL_LEADERBOARD' });
     this.broadcastSyncToAll();
   }
   executeCutoff(level: number) {
     const state = this.db.getGameState();
     if (level !== state.current_level + 1 || ![2, 3].includes(level)) throw new Error('Cut-off does not match the current level');
-    if (state.game_status === 'QUESTION_ACTIVE' || state.game_status === 'PAUSED') throw new Error('Lock the question first');
-    if (this.db.getPlayedQuestionIds(state.current_level).length < this.db.countQuestionsInLevel(state.current_level))
+    if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the question first');
+    const played = this.db.getPlayedQuestionIds(state.current_level).length;
+    const total = this.db.countQuestionsInLevel(state.current_level);
+    const hasRunnerAnswers = this.db.hasPipeQuestAnswers();
+    if (!hasRunnerAnswers && played < total) {
       throw new Error('Complete every scored question in this level before the cut-off');
+    }
     const result = level === 2 ? this.db.executeCutoffLevel2() : this.db.executeCutoffLevel3();
     this.broadcastSyncToAll();
     return result;

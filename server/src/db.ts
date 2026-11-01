@@ -387,6 +387,11 @@ export class DatabaseManager {
     return { selectedOption: option, isCorrect, coinsAwarded };
   }
 
+  hasPipeQuestAnswers(): boolean {
+    const row = this.db.prepare('SELECT 1 FROM pipe_quest_answers LIMIT 1').get();
+    return !!row;
+  }
+
   hasFlagpoleClaimed(playerId: string, level: number): boolean {
     const row = this.db.prepare('SELECT 1 FROM flagpole_finishes WHERE player_id = ? AND level = ?').get(playerId, level);
     return !!row;

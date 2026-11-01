@@ -83,12 +83,14 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const podiumStage = socket.gameState.game_status === 'PODIUM_WINNERS';
   const stageOverlay = spectatorLevel || finalStage || podiumStage;
 
+  const isHostPaused = socket.gameState.game_status === 'PAUSED';
+
   useEffect(() => {
     if (questionVisible) {
       questionStartTime.current = Date.now();
     }
-    engineRef.current?.setExternalPause(questionVisible || stageOverlay);
-  }, [questionVisible, stageOverlay]);
+    engineRef.current?.setExternalPause(questionVisible || stageOverlay || isHostPaused);
+  }, [questionVisible, stageOverlay, isHostPaused]);
 
   const resetRun = () => {
     engineRef.current?.reset();
@@ -235,7 +237,21 @@ export const GameView: React.FC<Props> = ({ socket }) => {
       </section>
     </div>}
 
-    {locallyPaused && !questionVisible && !stageOverlay && <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/65"><div className="rounded-xl border-4 border-yellow-400 bg-slate-900 p-6 text-center"><h2 className="font-pixel text-yellow-300">MOVEMENT PAUSED</h2><button onClick={togglePause} className="mt-5 min-h-11 rounded-lg bg-green-700 px-6 font-bold">Resume</button></div></div>}
+    {isHostPaused && !stageOverlay && (
+      <div className="absolute inset-0 z-40 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fade-in">
+        <div className="rounded-2xl border-4 border-yellow-400 bg-slate-900 p-8 text-center max-w-sm w-full space-y-4 shadow-2xl">
+          <div className="w-14 h-14 rounded-full bg-yellow-500/20 text-yellow-300 grid place-items-center mx-auto text-2xl font-bold border border-yellow-400/50">
+            ⏸️
+          </div>
+          <h2 className="font-pixel text-lg text-yellow-300">GAME PAUSED BY HOST</h2>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            The event operator has temporarily paused the game. Please stand by on this screen; it will resume automatically.
+          </p>
+        </div>
+      </div>
+    )}
+
+    {locallyPaused && !questionVisible && !stageOverlay && !isHostPaused && <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/65"><div className="rounded-xl border-4 border-yellow-400 bg-slate-900 p-6 text-center"><h2 className="font-pixel text-yellow-300">MOVEMENT PAUSED</h2><button onClick={togglePause} className="mt-5 min-h-11 rounded-lg bg-green-700 px-6 font-bold">Resume</button></div></div>}
     
     {levelComplete && !questionVisible && !stageOverlay && (
       <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/75 p-4 animate-fade-in">

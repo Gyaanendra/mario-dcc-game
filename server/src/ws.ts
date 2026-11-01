@@ -89,8 +89,10 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       switch (type) {
         case 'HOST_START_LEVEL': gameManager.startLevel(Number(data.level)); break;
         case 'HOST_OPEN_QUESTION': gameManager.openQuestion(Number(data.questionId)); break;
-        case 'HOST_PAUSE_TIMER': gameManager.pauseTimer(); break;
-        case 'HOST_RESUME_TIMER': gameManager.resumeTimer(); break;
+        case 'HOST_PAUSE_TIMER':
+        case 'HOST_PAUSE_GAME': gameManager.pauseTimer(); break;
+        case 'HOST_RESUME_TIMER':
+        case 'HOST_RESUME_GAME': gameManager.resumeTimer(); break;
         case 'HOST_EXTEND_TIMER': gameManager.extendTimer(Number(data.seconds || 10)); break;
         case 'HOST_LOCK_QUESTION': gameManager.lockQuestion(); break;
         case 'HOST_REVEAL_ANSWER': gameManager.revealAnswer(); break;
