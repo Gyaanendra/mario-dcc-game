@@ -7,6 +7,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { handleWebSocketConnection } from './ws.js';
 import { dbManager } from './db.js';
 import { level2QuestionBank } from './level2QuestionBank.js';
+import { level1QuestionBank } from './level1QuestionBank.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = '0.0.0.0';
@@ -21,8 +22,10 @@ async function start() {
   if (!process.env.HOST_PIN || process.env.HOST_PIN.length < 12) {
     throw new Error('Set a unique HOST_PIN of at least 12 characters before starting the server');
   }
-  const bankStatus = dbManager.installLevel2Questions(level2QuestionBank);
-  app.log.info({ bankStatus, questions: level2QuestionBank.length }, 'Level 2 question bank checked');
+  const level1BankStatus = dbManager.installLevel1Questions(level1QuestionBank);
+  const level2BankStatus = dbManager.installLevel2Questions(level2QuestionBank);
+  app.log.info({ level1BankStatus, level2BankStatus,
+    level1Questions: level1QuestionBank.length, level2Questions: level2QuestionBank.length }, 'Question banks checked');
 
   await app.register(fastifyWebsocket, {
     options: {

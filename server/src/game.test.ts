@@ -6,6 +6,7 @@ import path from 'node:path';
 import { DatabaseManager } from './db.js';
 import { GameManager } from './state.js';
 import { level2QuestionBank } from './level2QuestionBank.js';
+import { level1QuestionBank } from './level1QuestionBank.js';
 
 function fixture() {
   const dir = mkdtempSync(path.join(tmpdir(), 'mcq-test-'));
@@ -41,10 +42,40 @@ test('lobby pipe quest uses seeded questions, reveals immediately, and leaves ev
     assert.equal(x.manager.getPipeQuestPayload(p.id).nextPipeIndex, 1);
     assert.equal(x.manager.getPipeQuestPayload(p.id).question, null);
     assert.equal(x.db.getPlayerById(p.id)?.level1_score, 0);
+    assert.equal(x.db.getPipeQuestProgress(p.id, 0).completedPipes, 1);
+    assert.equal(x.db.getPipeQuestProgress(p.id, 1).completedPipes, 0);
+    assert.equal(x.db.getPlayerAnswer(p.id, 2), undefined);
     assert.throws(() => x.manager.submitPipeQuestAnswer(p.id, 0, 2, 'A'), /next pipe/);
     x.manager.setPipeReady(p.id, false);
     x.manager.setPipeReady(p.id, true, 1);
     assert.equal(x.manager.getPipeQuestPayload(p.id).question?.prompt, 'Second pipe');
+    x.manager.startLevel(1);
+    x.manager.setPipeReady(p.id, true, 0);
+    assert.equal(x.manager.getPipeQuestPayload(p.id).question?.prompt, 'Career basics');
+    assert.equal(x.manager.submitPipeQuestAnswer(p.id, 0, 2, 'A').isCorrect, true);
+    assert.ok(x.db.getPlayerById(p.id)!.level1_score > 0);
+  } finally { x.cleanup(); }
+});
+
+test('all 15 supplied Level 1 questions open at their pipes and unlock the flagpole', () => {
+  const x = fixture();
+  try {
+    assert.equal(x.db.installLevel1Questions(level1QuestionBank), 'installed');
+    const p = player(x.db, 'FIFTEEN');
+    x.manager.startLevel(1);
+    assert.equal(x.manager.getPipeQuestPayload(p.id).totalPipes, 15);
+    for (let index = 0; index < 15; index++) {
+      x.manager.setPipeReady(p.id, true, index);
+      const question = x.manager.getPipeQuestPayload(p.id).question!;
+      assert.equal(question.prompt, level1QuestionBank[index].prompt);
+      assert.equal(question.correct_option, null);
+      const result = x.manager.submitPipeQuestAnswer(p.id, index, question.id,
+        level1QuestionBank[index].correct_option);
+      assert.equal(result.isCorrect, true);
+      assert.equal(result.completedPipes, index + 1);
+    }
+    assert.equal(x.db.getPipeQuestProgress(p.id, 1).completedPipes, 15);
+    assert.equal(x.manager.claimFlagpoleBonus(p.id).success, true);
   } finally { x.cleanup(); }
 });
 
@@ -59,6 +90,7 @@ test('host starts a separate 25-pipe Level 2 for all players, with its own score
     x.manager.submitPipeQuestAnswer(finalist.id, 0, firstLevel1.id, 'A');
     const level1Score = x.db.getPlayerById(finalist.id)!.level1_score;
     assert.equal(x.db.getPipeQuestProgress(finalist.id, 1).completedPipes, 1);
+    assert.equal(x.db.installLevel1Questions(level1QuestionBank), 'in-use');
     assert.equal(x.db.installLevel2Questions(level2QuestionBank), 'installed');
     assert.equal(x.db.getPlayerById(finalist.id)?.level1_score, level1Score);
     assert.equal(x.db.getPipeQuestProgress(finalist.id, 1).completedPipes, 1);
@@ -394,6 +426,8 @@ test('resetGame preserves players on normal reset and wipes players on factory r
     assert.equal(x.db.getPlayerCount().total, 2);
     assert.equal(x.db.getPlayerById(p1.id)?.level1_score, 0);
     assert.equal(x.db.hasFlagpoleClaimed(p1.id, 1), false);
+    assert.equal(x.db.getPipeQuestQuestions(1).length, 15);
+    assert.equal(x.db.getPipeQuestQuestions(1)[0].prompt, level1QuestionBank[0].prompt);
 
     // Mode B: Full Factory Reset
     x.manager.resetGame(true);
@@ -401,35 +435,5 @@ test('resetGame preserves players on normal reset and wipes players on factory r
     assert.equal(x.db.getPlayerCount().total, 0);
     assert.equal(x.db.getPlayerById(p1.id), undefined);
     assert.equal(x.db.getPlayerById(p2.id), undefined);
-  } finally { x.cleanup(); }
-});
-
-test('host can manually advance a selected player to the next level', () => {
-  const x = fixture();
-  try {
-    x.db.installLevel2Questions(level2QuestionBank);
-    const p1 = player(x.db, 'ADV1');
-    const p2 = player(x.db, 'ADV2');
-    x.manager.startLevel(1);
-
-    assert.equal(x.db.getPlayerById(p1.id)?.is_qualified_level2, 0);
-    assert.equal(x.db.getPlayerById(p2.id)?.is_qualified_level2, 0);
-
-    // Host manually advances p1 to Level 2
-    x.manager.advancePlayerLevel(p1.id, 2);
-
-    // p1 is now qualified for Level 2, while p2 remains in current level
-    assert.equal(x.db.getPlayerById(p1.id)?.is_qualified_level2, 1);
-    assert.equal(x.db.getPlayerById(p2.id)?.is_qualified_level2, 0);
-
-    // p1 receives Level 2 pipes
-    x.manager.setPipeReady(p1.id, true, 0);
-    const p1Payload = x.manager.getPipeQuestPayload(p1.id);
-    assert.equal(p1Payload.totalPipes, 25);
-
-    // p2 still receives Level 1 pipes
-    x.manager.setPipeReady(p2.id, true, 0);
-    const p2Payload = x.manager.getPipeQuestPayload(p2.id);
-    assert.equal(p2Payload.totalPipes, x.db.getPipeQuestQuestions(1).length);
   } finally { x.cleanup(); }
 });

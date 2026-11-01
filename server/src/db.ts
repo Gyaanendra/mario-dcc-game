@@ -333,14 +333,6 @@ export class DatabaseManager {
       .run(isConnected ? 1 : 0, id);
   }
 
-  advancePlayerQualification(id: string, targetLevel: number) {
-    if (targetLevel === 2) {
-      this.db.prepare('UPDATE players SET is_qualified_level2 = 1 WHERE id = ?').run(id);
-    } else if (targetLevel === 3) {
-      this.db.prepare('UPDATE players SET is_qualified_level3 = 1 WHERE id = ?').run(id);
-    }
-  }
-
   getAllPlayers(): Player[] {
     return this.db.prepare(`
       SELECT *, (level1_score + level2_score) as total_coins
@@ -368,21 +360,30 @@ export class DatabaseManager {
     return this.db.prepare("SELECT * FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0 ORDER BY sort_order ASC, id ASC").all(level) as unknown as Question[];
   }
 
-  // Update only the unused Level 2 bank on an existing event database. Level 1
-  // players, scores and answers stay intact when the server is restarted.
-  installLevel2Questions(bank: ReadonlyArray<Omit<Question, 'id' | 'is_practice'>>): 'current' | 'installed' | 'in-use' {
-    const existing = this.getQuestionsForLevel(2);
+  // Replace a bank only before that level starts or after an explicit game reset.
+  // Existing players and answers from other levels are never changed.
+  private installRegularQuestions(level: 1 | 2, bank: ReadonlyArray<Omit<Question, 'id' | 'is_practice'>>): 'current' | 'installed' | 'in-use' {
+    if (bank.some(question => question.level !== level)) throw new Error('Question bank level mismatch');
+    const existing = this.getQuestionsForLevel(level);
     if (existing.length === bank.length && existing.every((q, i) =>
-      q.prompt === bank[i].prompt && q.correct_option === bank[i].correct_option && (q.image_url ?? null) === (bank[i].image_url ?? null))) return 'current';
+      q.category === bank[i].category && q.prompt === bank[i].prompt &&
+      q.option_a === bank[i].option_a && q.option_b === bank[i].option_b &&
+      (q.option_c ?? null) === (bank[i].option_c ?? null) &&
+      (q.option_d ?? null) === (bank[i].option_d ?? null) &&
+      q.correct_option === bank[i].correct_option &&
+      (q.explanation ?? null) === (bank[i].explanation ?? null) &&
+      q.points === bank[i].points && q.time_limit_sec === bank[i].time_limit_sec &&
+      q.sort_order === bank[i].sort_order &&
+      (q.image_url ?? null) === (bank[i].image_url ?? null))) return 'current';
     const activity = this.db.prepare(`SELECT 1 FROM player_answers a JOIN questions q ON q.id = a.question_id
-      WHERE q.level = 2 LIMIT 1`).get() ||
-      this.db.prepare('SELECT 1 FROM pipe_quest_answers WHERE level = 2 LIMIT 1').get() ||
+      WHERE q.level = ? AND q.is_practice = 0 LIMIT 1`).get(level) ||
+      this.db.prepare('SELECT 1 FROM pipe_quest_answers WHERE level = ? LIMIT 1').get(level) ||
       this.db.prepare(`SELECT 1 FROM opened_questions o JOIN questions q ON q.id = o.question_id
-        WHERE q.level = 2 LIMIT 1`).get();
-    if (this.getGameState().current_level >= 2 || activity) return 'in-use';
+        WHERE q.level = ? AND q.is_practice = 0 LIMIT 1`).get(level);
+    if (this.getGameState().current_level >= level || activity) return 'in-use';
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      this.db.exec("DELETE FROM questions WHERE level = 2 AND category != 'SUDDEN_DEATH'");
+      this.db.prepare("DELETE FROM questions WHERE level = ? AND category != 'SUDDEN_DEATH' AND is_practice = 0").run(level);
       const insert = this.db.prepare(`INSERT INTO questions
         (level, category, prompt, option_a, option_b, option_c, option_d,
          correct_option, explanation, points, time_limit_sec, sort_order, is_practice, image_url)
@@ -398,12 +399,20 @@ export class DatabaseManager {
     return 'installed';
   }
 
+  installLevel1Questions(bank: ReadonlyArray<Omit<Question, 'id' | 'is_practice'>>) {
+    return this.installRegularQuestions(1, bank);
+  }
+
+  installLevel2Questions(bank: ReadonlyArray<Omit<Question, 'id' | 'is_practice'>>) {
+    return this.installRegularQuestions(2, bank);
+  }
+
   getPracticeQuestion(): Question | undefined {
     return this.db.prepare('SELECT * FROM questions WHERE is_practice = 1 LIMIT 1').get() as unknown as Question | undefined;
   }
 
   getPipeQuestQuestions(level: number = 1): Question[] {
-    return this.getQuestionsForLevel(level).slice(0, level === 1 ? 10 : 25);
+    return this.getQuestionsForLevel(level).slice(0, level === 1 ? 15 : 25);
   }
 
   getPipeQuestProgress(playerId: string, level: number = 1): { completedPipes: number; correctCount: number } {
@@ -431,12 +440,14 @@ export class DatabaseManager {
     try {
       this.db.prepare(`INSERT INTO pipe_quest_answers
         (player_id, level, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(playerId, question.level, pipeIndex, question.id, option, isCorrect ? 1 : 0);
+        .run(playerId, state.current_level, pipeIndex, question.id, option, isCorrect ? 1 : 0);
 
-      this.db.prepare(`INSERT INTO player_answers
-        (player_id, question_id, selected_option, is_correct, response_time_ms, coins_awarded)
-        VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(playerId, question.id, option, isCorrect ? 1 : 0, Math.floor(responseTimeMs), coinsAwarded);
+      if (state.current_level >= 1) {
+        this.db.prepare(`INSERT INTO player_answers
+          (player_id, question_id, selected_option, is_correct, response_time_ms, coins_awarded)
+          VALUES (?, ?, ?, ?, ?, ?)`)
+          .run(playerId, question.id, option, isCorrect ? 1 : 0, Math.floor(responseTimeMs), coinsAwarded);
+      }
 
       if (coinsAwarded > 0) {
         const scoreCol = state.current_level === 1 ? 'level1_score' : 'level2_score';

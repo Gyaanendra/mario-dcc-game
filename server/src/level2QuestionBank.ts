@@ -14,8 +14,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Interviewers probe leadership claims, and a discovered exaggeration costs far more than an honest, smaller claim. A leaves the false claim in place and hopes nobody checks, B doubles down with a stretched story that collapses at the first follow-up, and C gives up the interview when the error is easily fixable.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 1,
-    "image_url": "/images/questions/offer-letter-redflag.svg"
+    "sort_order": 1
   },
   {
     "level": 2,
@@ -29,8 +28,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Headline and skills drive recruiter search and the first impression. A adds connections without adding relevance, B is cosmetic and does not affect search, and D adds length and personal story without keywords or proof of ML skills.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 2,
-    "image_url": "/images/questions/resume-ats-audit.svg"
+    "sort_order": 2
   },
   {
     "level": 2,
@@ -44,8 +42,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It is specific (role, ID), shows relevant evidence, and makes a small, low-effort ask that opens a conversation. A asks for a referral with no context or evidence, B is flattery with only a vague ask, and C requests a bulk favour that shows no targeting.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 3,
-    "image_url": "/images/questions/git-workflow.svg"
+    "sort_order": 3
   },
   {
     "level": 2,
@@ -59,8 +56,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "On imbalanced data, accuracy hides failure to catch the minority class: a model that never flags fraud still scores 99%. B, C and D are minor points (how high the number looks, a missing link, a weak verb) and none is the flaw an interviewer will press on. This is a classic critical-thinking trap on resumes.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 4,
-    "image_url": "/images/questions/system-architecture.svg"
+    "sort_order": 4
   },
   {
     "level": 2,

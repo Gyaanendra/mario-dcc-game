@@ -23,12 +23,6 @@ export const HostView: React.FC = () => {
   const [tieRound, setTieRound] = useState(1);
   const [playerSearch, setPlayerSearch] = useState('');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'level1' | 'level2' | 'finalists'>('all');
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
-  };
 
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
@@ -61,12 +55,6 @@ export const HostView: React.FC = () => {
         <button disabled={!isConnected} className="w-full min-h-12 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg font-bold focus-visible:outline-4 focus-visible:outline-yellow-300">{isConnected ? 'Enter control room' : 'Connecting…'}</button>
         {lastError && <p role="alert" className="text-red-300 text-sm">{lastError}</p>}
       </form>
-      {toastMsg && (
-        <aside aria-label="Notification" className="fixed bottom-6 right-6 z-50 bg-green-900 border-2 border-green-400 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm animate-fade-in">
-          <CheckCircle2 size={18} className="text-green-300" />
-          <span>{toastMsg}</span>
-        </aside>
-      )}
     </main>
   );
 
@@ -80,12 +68,6 @@ export const HostView: React.FC = () => {
           <button onClick={exportResults} className="flex items-center gap-2 px-3 py-2 min-h-11 rounded-lg border border-slate-500 hover:bg-slate-800 focus-visible:outline-4 focus-visible:outline-yellow-300"><Download size={17} /> Export CSV</button>
         </div>
       </header>
-      {toastMsg && (
-        <div role="status" className="bg-emerald-950 border-2 border-emerald-400 text-emerald-200 p-3 rounded-xl flex items-center justify-between text-sm animate-fade-in shadow-lg">
-          <span className="font-semibold">{toastMsg}</span>
-          <button onClick={() => setToastMsg(null)} className="underline text-xs">Dismiss</button>
-        </div>
-      )}
       {lastError && <div role="alert" className="flex justify-between items-start gap-3 bg-red-950 border-2 border-red-500 p-4 rounded-lg"><span><AlertCircle className="inline mr-2" size={18} />{lastError}</span><button onClick={clearError} className="underline">Dismiss</button></div>}
 
       {/* Host Panel Section Navigation Tabs */}
@@ -110,7 +92,7 @@ export const HostView: React.FC = () => {
               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
         >
-          <Users size={15} /> PLAYERS &amp; ADVANCE ({counts.total})
+          <Users size={15} /> PLAYER ROSTER ({counts.total})
         </button>
         <button
           type="button"
@@ -137,16 +119,16 @@ export const HostView: React.FC = () => {
       </nav>
       <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)] gap-5">
 
-        {/* PLAYERS & INDIVIDUAL ADVANCEMENT TAB */}
+        {/* PLAYER ROSTER TAB */}
         {activeTab === 'players' && (
           <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4 col-span-full" aria-labelledby="player-advancement">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
               <div>
                 <h2 id="player-advancement" className="font-pixel text-sm text-yellow-300">
-                  PLAYER ROSTER &amp; INDIVIDUAL ADVANCEMENT
+                  PLAYER ROSTER
                 </h2>
                 <p className="text-xs text-slate-300 mt-1">
-                  Advance specific players to Level 2 or Bowser Stage. Advancing triggers a smooth cinematic warp transition on their device without disturbing others.
+                  Level 2 opens for everyone together. The top 50 and finalists are selected by the score cut-offs.
                 </p>
               </div>
               <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-sky-500/20 text-sky-300 border border-sky-400/40">
@@ -169,14 +151,14 @@ export const HostView: React.FC = () => {
                   onClick={() => setPlayerFilter('level1')}
                   className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level1' ? 'bg-yellow-400 text-black' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  In Level 1 ({leaderboard.filter(p => !p.is_qualified_level2).length})
+                  Outside Top 50 ({leaderboard.filter(p => !p.is_qualified_level2).length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setPlayerFilter('level2')}
                   className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level2' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  In Level 2 ({leaderboard.filter(p => p.is_qualified_level2 && !p.is_qualified_level3).length})
+                  Level 1 Top 50 ({leaderboard.filter(p => p.is_qualified_level2 && !p.is_qualified_level3).length})
                 </button>
                 <button
                   type="button"
@@ -212,10 +194,9 @@ export const HostView: React.FC = () => {
                       <th className="p-3">Player</th>
                       <th className="p-3">Roll No</th>
                       <th className="p-3">Pillars</th>
-                      <th className="p-3">L1 Coins</th>
-                      <th className="p-3">L2 Coins</th>
+                      <th className="p-3">L1 Points</th>
+                      <th className="p-3">L2 Points</th>
                       <th className="p-3">Stage Status</th>
-                      <th className="p-3 text-right">Advancement Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -244,8 +225,8 @@ export const HostView: React.FC = () => {
                           </td>
                           <td className="p-3 font-mono text-sky-200">{player.student_id}</td>
                           <td className="p-3 font-mono">{player.completed_pipes ?? 0}/{totalPipes}</td>
-                          <td className="p-3 font-mono text-yellow-300 font-bold">{player.level1_score} 🪙</td>
-                          <td className="p-3 font-mono text-blue-300 font-bold">{player.level2_score} 🪙</td>
+                          <td className="p-3 font-mono text-yellow-300 font-bold">{player.level1_score}</td>
+                          <td className="p-3 font-mono text-blue-300 font-bold">{player.level2_score}</td>
                           <td className="p-3">
                             {isFinalist ? (
                               <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono text-[10px]">
@@ -253,39 +234,12 @@ export const HostView: React.FC = () => {
                               </span>
                             ) : isL2Qualified ? (
                               <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-mono text-[10px]">
-                                ★ LEVEL 2
+                                ★ LEVEL 1 TOP 50
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-mono text-[10px]">
-                                LEVEL 1
+                                PLAYING
                               </span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            {isFinalist ? (
-                              <span className="text-[11px] text-purple-300 font-mono">Stage 3 Ready</span>
-                            ) : isL2Qualified ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  send({ type: 'HOST_ADVANCE_PLAYER_LEVEL', playerId: player.id, targetLevel: 3 });
-                                  showToast(`👑 Advanced ${player.name} to Bowser Stage!`);
-                                }}
-                                className="event-button bg-purple-700 hover:bg-purple-600 text-white text-[11px] py-1 px-3 shadow"
-                              >
-                                👑 Advance to Boss Stage
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  send({ type: 'HOST_ADVANCE_PLAYER_LEVEL', playerId: player.id, targetLevel: 2 });
-                                  showToast(`⚡ Advanced ${player.name} to Level 2! Cinematic warp dispatched.`);
-                                }}
-                                className="event-button bg-blue-600 hover:bg-blue-500 text-white text-[11px] py-1 px-3 shadow"
-                              >
-                                ▶ Advance to Level 2
-                              </button>
                             )}
                           </td>
                         </tr>

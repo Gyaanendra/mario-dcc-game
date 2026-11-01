@@ -23,14 +23,9 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const [showTouchControls, setShowTouchControls] = useState(false);
   const avatarId = socket.player?.avatar_id;
   const playerId = socket.player?.id;
-  const effectiveLevel = (socket.player?.is_qualified_level2 || socket.gameState.current_level >= 2) ? 2 : (socket.gameState.current_level || 1);
+  const effectiveLevel = socket.gameState.current_level || 1;
   const isConnected = socket.isConnected;
   const send = socket.send;
-
-  useEffect(() => {
-    setSelectedOption(null);
-    setImageError(false);
-  }, [pipeIndex]);
 
   useEffect(() => {
     const checkSize = () => {
@@ -49,9 +44,15 @@ export const GameView: React.FC<Props> = ({ socket }) => {
     engine.start();
     const resize = () => engine.resize();
     window.addEventListener('resize', resize);
+    let lastContact: number | null = null;
     const poll = window.setInterval(() => {
       const contact = engine.getPipeContact();
-      setPipeIndex(previous => previous === contact ? previous : contact);
+      if (contact !== lastContact) {
+        lastContact = contact;
+        setPipeIndex(contact);
+        setSelectedOption(null);
+        setImageError(false);
+      }
       setLevelComplete(previous => {
         if (!previous && engine.gameState.levelComplete) {
           // Trigger flagpole clear
@@ -108,6 +109,8 @@ export const GameView: React.FC<Props> = ({ socket }) => {
     setClosedDemoPipeIndex(null);
     setLocallyPaused(false);
     setLevelComplete(false);
+    setSelectedOption(null);
+    setImageError(false);
   };
   const togglePause = () => {
     engineRef.current?.togglePause();
@@ -124,7 +127,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const questionIsLive = socket.gameState.game_status === 'QUESTION_ACTIVE';
   const awaitingPipe = questionIsLive && pipeIndex === null && !socket.isSpectator && !socket.myAnswer;
   const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
-  const totalPipes = socket.pipeQuest.totalPipes || (effectiveLevel === 2 ? 25 : 10);
+  const totalPipes = socket.pipeQuest.totalPipes || (effectiveLevel === 2 ? 25 : 15);
   const levelScore = effectiveLevel === 2 ? socket.player?.level2_score : socket.player?.level1_score;
 
   const handleAnswerSubmit = (key: string) => {

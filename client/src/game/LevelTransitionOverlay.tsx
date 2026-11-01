@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Trophy, ArrowRight, Zap } from 'lucide-react';
 import { MarioSprite, LuigiSprite } from '../utils/pixelSprites';
+import { gameAudio } from './audio';
 
 interface LevelTransitionOverlayProps {
   targetLevel: number;
@@ -24,6 +25,7 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
 
   // Retro 8-bit fanfare audio using Web Audio API
   useEffect(() => {
+    if (gameAudio.isMuted()) return;
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
@@ -78,7 +80,7 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
 
   const worldName = targetLevel === 2 ? 'WORLD 2-1: UNDERGROUND ARCHITECT' : 'STAGE 3: BOWSER BOSS ARENA';
   const worldSubtitle = targetLevel === 2
-    ? '10 Advanced Technical Pillars · Architecture Diagrams · Red Flag Scenarios'
+    ? '25 career challenge pillars · Open to every player'
     : 'Live Finalist Presentation on Stage · Executive Rubric Judging';
 
   return (
@@ -94,7 +96,7 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
         <div className="w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-sky-900 to-black animate-pulse" />
       </div>
 
-      {/* Floating Sparkles & Coins */}
+      {/* Floating sparkles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         {[...Array(12)].map((_, i) => (
           <div
@@ -114,7 +116,7 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
 
       {/* Main Transition Card */}
       <div className="relative z-10 w-full max-w-lg rounded-3xl border-4 border-yellow-400 bg-gradient-to-b from-[#182a46] via-[#101c30] to-[#0a1220] p-6 sm:p-8 text-center shadow-[0_0_50px_rgba(250,204,21,0.45)] space-y-5">
-        
+
         {/* Top Header Badge */}
         <div className="flex items-center justify-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-pixel text-[11px] tracking-widest bg-yellow-400 text-black font-black uppercase shadow-md">
@@ -134,7 +136,7 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
                 STAGE CLEAR!
               </h1>
               <p className="font-pixel text-xs text-sky-200 mt-2">
-                TOP 50 QUALIFICATION UNLOCKED
+                {targetLevel === 2 ? 'EVERY PLAYER CAN ENTER LEVEL 2' : 'TOP 10 FINALIST'}
               </p>
             </div>
           </div>
@@ -190,8 +192,8 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
             <span className="font-bold text-white truncate block">{playerName}</span>
           </div>
           <div className="text-right">
-            <span className="text-slate-400 block text-[10px]">TOTAL COINS</span>
-            <span className="font-pixel text-yellow-300 text-sm">★ {coins} 🪙</span>
+            <span className="text-slate-400 block text-[10px]">TOTAL POINTS</span>
+            <span className="font-pixel text-yellow-300 text-sm">★ {coins}</span>
           </div>
         </div>
 

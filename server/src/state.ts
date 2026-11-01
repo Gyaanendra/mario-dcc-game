@@ -1,6 +1,8 @@
 import type { WebSocket } from 'ws';
 import { dbManager, DatabaseManager } from './db.js';
 import type { Question, Player, GameStateRecord } from './types.js';
+import { level1QuestionBank } from './level1QuestionBank.js';
+import { level2QuestionBank } from './level2QuestionBank.js';
 
 const publicPlayer = (player: Player) => ({
   id: player.id, name: player.name, avatar_id: player.avatar_id,
@@ -94,7 +96,7 @@ export class GameManager {
     const player = this.db.getPlayerById(id);
     if (!player) throw new Error('Join before entering a pipe');
     const state = this.db.getGameState();
-    const level = (state.current_level >= 2 || player.is_qualified_level2) ? 2 : (state.current_level || 1);
+    const level = state.current_level || 1;
     const eligible = level <= 2;
     const wasReady = this.pipeReadyPlayers.has(id);
     if (ready && eligible) this.pipeReadyPlayers.add(id);
@@ -120,9 +122,9 @@ export class GameManager {
   getPipeQuestPayload(id: string) {
     const state = this.db.getGameState();
     const player = this.db.getPlayerById(id);
-    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
+    const level = state.current_level || 1;
     const questions = this.db.getPipeQuestQuestions(level);
-    const progress = this.db.getPipeQuestProgress(id, level);
+    const progress = this.db.getPipeQuestProgress(id, state.current_level);
     const pipeIndex = this.pipeIndices.get(id);
     const question = !this.db.getCutoffState(level + 1) && pipeIndex !== undefined &&
       pipeIndex === progress.completedPipes && this.pipeReadyPlayers.has(id) ? questions[pipeIndex] : undefined;
@@ -136,12 +138,12 @@ export class GameManager {
     if (state.game_status === 'ENDED' || state.game_status === 'PODIUM_WINNERS')
       throw new Error('The event has concluded');
     const player = this.db.getPlayerById(id);
-    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
+    const level = state.current_level || 1;
     if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     if (!player || level > 2)
       throw new Error('You are watching this round as a spectator');
     const questions = this.db.getPipeQuestQuestions(level);
-    const progress = this.db.getPipeQuestProgress(id, level);
+    const progress = this.db.getPipeQuestProgress(id, state.current_level);
     const question = questions[pipeIndex];
     if (!question || pipeIndex !== progress.completedPipes || question.id !== questionId ||
       this.pipeIndices.get(id) !== pipeIndex || !this.pipeReadyPlayers.has(id))
@@ -151,15 +153,16 @@ export class GameManager {
     this.pipeReadyAt.delete(id);
     this.broadcastSyncToAll();
     return { type: 'PIPE_QUEST_RESULT', pipeIndex, question: { ...publicQuestion(question, true), pipeIndex },
-      ...result, ...this.db.getPipeQuestProgress(id, level) };
+      ...result, ...this.db.getPipeQuestProgress(id, state.current_level) };
   }
 
   claimFlagpoleBonus(id: string) {
     const state = this.db.getGameState();
+    if (state.current_level === 0) return { type: 'FLAGPOLE_RESULT', success: false, message: 'Wait for the host to start Level 1' };
     const player = this.db.getPlayerById(id);
-    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
+    const level = state.current_level;
     if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
-    if (!player || level > 2)
+    if (!player || ![1, 2].includes(level))
       throw new Error('You are watching this round as a spectator');
     const progress = this.db.getPipeQuestProgress(id, level);
     const totalPipes = this.db.getPipeQuestQuestions(level).length;
@@ -313,6 +316,8 @@ export class GameManager {
     this.pipeReadyAt.clear();
     this.broadcastSyncToAll();
     for (const [id, ws] of this.playerSockets) this.send(ws, this.getPipeQuestPayload(id));
+    if (level === 2) this.broadcastPlayers({ type: 'PLAYER_LEVEL_ADVANCE', targetLevel: 2,
+      levelTitle: 'WORLD 2-1: CAREER MASTERY', message: 'LEVEL 2 IS OPEN FOR EVERY PLAYER', timestamp: Date.now() });
   }
   openQuestion(questionId: number) {
     const state = this.db.getGameState();
@@ -485,33 +490,10 @@ export class GameManager {
     this.db.updateGameState({ game_status: 'PODIUM_WINNERS', speaker_running: 0, speaker_deadline_at: null } as any);
     this.broadcastSyncToAll();
   }
-  advancePlayerLevel(playerId: string, targetLevel: number) {
-    const player = this.db.getPlayerById(playerId);
-    if (!player) throw new Error('Player not found');
-    if (![2, 3].includes(targetLevel)) throw new Error('Target level must be 2 or 3');
-    this.db.advancePlayerQualification(playerId, targetLevel);
-
-    const ws = this.playerSockets.get(playerId);
-    if (ws) {
-      this.send(ws, {
-        type: 'PLAYER_LEVEL_ADVANCE',
-        playerId,
-        targetLevel,
-        levelTitle: targetLevel === 2 ? 'WORLD 2-1: CAREER MASTERY' : 'STAGE 3: BOWSER ARENA',
-        message: targetLevel === 2
-          ? 'STAGE 1 CLEARED! ADVANCING TO WORLD 2-1'
-          : 'FINALIST QUALIFIED! ENTERING BOWSER ARENA',
-        timestamp: Date.now()
-      });
-      this.send(ws, this.getPlayerSyncPayload(playerId));
-      this.send(ws, this.getPipeQuestPayload(playerId));
-    }
-
-    this.broadcastSyncToAll();
-  }
-
   resetGame(wipePlayers: boolean = false) {
     this.db.resetGame(wipePlayers);
+    this.db.installLevel1Questions(level1QuestionBank);
+    this.db.installLevel2Questions(level2QuestionBank);
     this.pipeReadyPlayers.clear();
     this.pipeIndices.clear();
     this.pipeReadyAt.clear();
