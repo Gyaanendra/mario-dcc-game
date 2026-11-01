@@ -403,3 +403,33 @@ test('resetGame preserves players on normal reset and wipes players on factory r
     assert.equal(x.db.getPlayerById(p2.id), undefined);
   } finally { x.cleanup(); }
 });
+
+test('host can manually advance a selected player to the next level', () => {
+  const x = fixture();
+  try {
+    x.db.installLevel2Questions(level2QuestionBank);
+    const p1 = player(x.db, 'ADV1');
+    const p2 = player(x.db, 'ADV2');
+    x.manager.startLevel(1);
+
+    assert.equal(x.db.getPlayerById(p1.id)?.is_qualified_level2, 0);
+    assert.equal(x.db.getPlayerById(p2.id)?.is_qualified_level2, 0);
+
+    // Host manually advances p1 to Level 2
+    x.manager.advancePlayerLevel(p1.id, 2);
+
+    // p1 is now qualified for Level 2, while p2 remains in current level
+    assert.equal(x.db.getPlayerById(p1.id)?.is_qualified_level2, 1);
+    assert.equal(x.db.getPlayerById(p2.id)?.is_qualified_level2, 0);
+
+    // p1 receives Level 2 pipes
+    x.manager.setPipeReady(p1.id, true, 0);
+    const p1Payload = x.manager.getPipeQuestPayload(p1.id);
+    assert.equal(p1Payload.totalPipes, 25);
+
+    // p2 still receives Level 1 pipes
+    x.manager.setPipeReady(p2.id, true, 0);
+    const p2Payload = x.manager.getPipeQuestPayload(p2.id);
+    assert.equal(p2Payload.totalPipes, x.db.getPipeQuestQuestions(1).length);
+  } finally { x.cleanup(); }
+});

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX, Wifi, WifiOff, Trophy, Sparkles } from 'lucide-react';
+import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX, Wifi, WifiOff, Trophy, Sparkles, Search, X } from 'lucide-react';
+import { LevelTransitionOverlay } from './LevelTransitionOverlay';
 import type { SocketHookState } from '../utils/socket';
 import { GameEngine } from './engine';
 import { gameAudio } from './audio';
@@ -14,6 +15,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const [pipeIndex, setPipeIndex] = useState<number | null>(null);
   const [closedDemoPipeIndex, setClosedDemoPipeIndex] = useState<number | null>(null);
   const [locallyPaused, setLocallyPaused] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [levelComplete, setLevelComplete] = useState(false);
   const [isMuted, setIsMuted] = useState(gameAudio.isMuted());
   const [showTouchControls, setShowTouchControls] = useState(false);
@@ -178,6 +180,38 @@ export const GameView: React.FC<Props> = ({ socket }) => {
         <h2 id="pipe-question" className="mt-4 text-xl font-black leading-snug sm:text-2xl">{question.prompt}</h2>
         <p className="mt-2 text-xs text-sky-200">100 base coins + speed bonus for fast answers!</p>
 
+        {/* Reference Image Display with Lightbox & Zoom */}
+        {question.image_url && (
+          <div className="mt-3 overflow-hidden rounded-xl border border-sky-400/50 bg-slate-900/90 p-2 sm:p-3">
+            <div className="flex items-center justify-between text-xs text-sky-300 mb-1.5 px-1">
+              <span className="font-semibold flex items-center gap-1.5">
+                <Search size={14} /> Case Reference Diagram
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomedImage(question.image_url!)}
+                className="text-[11px] underline hover:text-white cursor-pointer"
+              >
+                Tap to expand
+              </button>
+            </div>
+            <div
+              className="cursor-pointer group relative flex items-center justify-center bg-black/40 rounded-lg overflow-hidden border border-slate-700 max-h-56 sm:max-h-72"
+              onClick={() => setZoomedImage(question.image_url!)}
+            >
+              <img
+                src={question.image_url}
+                alt="Case Study Reference"
+                loading="eager"
+                className="max-h-56 sm:max-h-72 w-auto max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+              />
+              <span className="absolute bottom-2 right-2 bg-slate-950/80 text-[10px] text-yellow-300 px-2 py-0.5 rounded border border-yellow-400/30">
+                🔍 Tap to zoom
+              </span>
+            </div>
+          </div>
+        )}
+
         {level === 2 && question.category === 'RESUME_CASE' && <details className="mt-4 rounded-xl border border-sky-400/60 bg-sky-950/70 p-3" open>
           <summary className="cursor-pointer font-bold text-sky-200">View Aditya’s corrected resume</summary>
           <img src="/images/level2-aditya-resume.png" alt="Corrected resume for the Level 2 questions" loading="lazy" decoding="async" className="mt-3 w-full rounded bg-white" />
@@ -280,5 +314,46 @@ export const GameView: React.FC<Props> = ({ socket }) => {
     )}
 
     {showTouchControls && !questionVisible && !locallyPaused && !stageOverlay && <div className="game-controls pointer-events-none absolute bottom-14 left-0 right-0 z-20 flex items-end justify-between px-3"><span className="game-controls-label">HOLD TO RUN · TAP TO JUMP</span><div className="pointer-events-auto flex gap-3"><button aria-label="Move left" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchLeft(true); }} onPointerUp={() => engineRef.current?.touchLeft(false)} onPointerCancel={() => engineRef.current?.touchLeft(false)} onLostPointerCapture={() => engineRef.current?.touchLeft(false)} className="game-control-btn grid h-16 w-16 place-items-center rounded-xl border-2 border-white/50 bg-slate-950/75 text-3xl">◀</button><button aria-label="Move right" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchRight(true); }} onPointerUp={() => engineRef.current?.touchRight(false)} onPointerCancel={() => engineRef.current?.touchRight(false)} onLostPointerCapture={() => engineRef.current?.touchRight(false)} className="game-control-btn grid h-16 w-16 place-items-center rounded-xl border-2 border-white/50 bg-slate-950/75 text-3xl">▶</button></div><button aria-label="Jump" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); engineRef.current?.touchJump(); }} onPointerUp={() => engineRef.current?.touchJumpRelease()} onPointerCancel={() => engineRef.current?.touchJumpRelease()} onLostPointerCapture={() => engineRef.current?.touchJumpRelease()} className="game-jump-btn pointer-events-auto grid h-20 w-20 place-items-center rounded-full border-2 border-white/60 bg-red-600 text-xs font-pixel">JUMP</button></div>}
+
+    {/* Lightbox Zoom Modal for Diagrams */}
+    {zoomedImage && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-6 backdrop-blur-md animate-fade-in"
+        onClick={() => setZoomedImage(null)}
+      >
+        <div className="relative max-w-4xl w-full max-h-[92vh] flex flex-col items-center bg-[#15243b] border-2 border-yellow-400 rounded-2xl p-3 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between w-full border-b border-slate-700 pb-2 px-2">
+            <span className="font-pixel text-xs text-yellow-300">REFERENCE DIAGRAM (FULL VIEW)</span>
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="p-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold"
+              aria-label="Close zoomed image"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="overflow-auto w-full p-2 flex items-center justify-center max-h-[78vh]">
+            <img
+              src={zoomedImage}
+              alt="Expanded diagram"
+              className="max-h-[75vh] w-auto max-w-full object-contain rounded"
+            />
+          </div>
+          <p className="text-xs text-slate-400 pt-1">Tap anywhere or click ✕ to return to questions</p>
+        </div>
+      </div>
+    )}
+
+    {/* Smooth Cinematic Level Transition Overlay */}
+    {socket.levelAdvanceEvent && (
+      <LevelTransitionOverlay
+        targetLevel={socket.levelAdvanceEvent.targetLevel}
+        playerName={socket.player?.name}
+        avatarId={avatarId}
+        coins={(socket.player?.level1_score || 0) + (socket.player?.level2_score || 0)}
+        message={socket.levelAdvanceEvent.message}
+        onComplete={socket.clearLevelAdvance}
+      />
+    )}
   </div>;
 };

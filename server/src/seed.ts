@@ -224,6 +224,69 @@ export function seedQuestions() {
     },
 
     // Level 2: the complete attached question bank (10 MCQs and 15 Myth/Fact items).
+
+    // Demo Level 2 Questions with Reference Images
+    {
+      level: 2,
+      category: 'RED FLAG',
+      prompt: 'CASE AUDIT (Refer to image): You receive this WhatsApp message promising an "Exclusive ML Internship with ₹40,000 Stipend". What is the most critical red flag proving it is fraudulent?',
+      option_a: 'It was sent via WhatsApp during office hours',
+      option_b: 'It uses a personal webmail address (@gmail.com) and demands an upfront ₹750 badge fee',
+      option_c: 'The stipend is listed in rupees instead of US dollars',
+      option_d: 'The candidate is asked to send a UPI screenshot',
+      correct_option: 'B',
+      explanation: 'Official enterprise employers never recruit via personal @gmail.com accounts and never demand registration or badge fees from candidates.',
+      points: 100,
+      time_limit_sec: 35,
+      sort_order: 1,
+      image_url: '/images/questions/offer-letter-redflag.svg'
+    },
+    {
+      level: 2,
+      category: 'CHOOSE WISELY',
+      prompt: 'ARCHITECTURE AUDIT (Refer to diagram): In the 150-user concurrent architecture diagram shown, why is SQLite Write-Ahead Logging (WAL) essential for the live scoreboard?',
+      option_a: 'WAL compresses the database into a zip archive for faster download',
+      option_b: 'WAL converts SQLite into a NoSQL document database',
+      option_c: 'WAL allows simultaneous non-blocking reads (Projector/Leaderboard) while answer transactions commit',
+      option_d: 'WAL prevents students from inspecting network requests',
+      correct_option: 'C',
+      explanation: 'In standard rollback journal mode, writing locks the whole database file. WAL mode enables concurrent readers while the single writer appends log frames.',
+      points: 100,
+      time_limit_sec: 35,
+      sort_order: 2,
+      image_url: '/images/questions/system-architecture.svg'
+    },
+    {
+      level: 2,
+      category: 'CHOOSE WISELY',
+      prompt: 'GIT AUDIT (Refer to branch graph): Feature branch and main both modified auth.ts differently. What is the safest command to test conflicts before merging into main?',
+      option_a: 'git push origin main --force',
+      option_b: 'git merge -s ours feature/login',
+      option_c: 'git checkout feature/login && git rebase main (or git merge main)',
+      option_d: 'git reset --hard HEAD~10',
+      correct_option: 'C',
+      explanation: 'Rebasing or merging main into the feature branch brings in the latest upstream changes locally so conflicts can be tested and resolved before creating a PR.',
+      points: 100,
+      time_limit_sec: 35,
+      sort_order: 3,
+      image_url: '/images/questions/git-workflow.svg'
+    },
+    {
+      level: 2,
+      category: 'RESUME_LINKEDIN',
+      prompt: 'ATS AUDIT (Refer to scorecard): Why did Format A fail the automated Applicant Tracking System (34% score) while Format B scored 98%?',
+      option_a: 'Format A lacked colorful Canva template backgrounds',
+      option_b: 'Format A placed essential text inside multi-column tables, text boxes, and icons that parsers cannot extract linearly',
+      option_c: 'Format B was written in Python rather than English',
+      option_d: 'Format A did not include a selfie photo in the header',
+      correct_option: 'B',
+      explanation: 'Enterprise ATS parsers read left-to-right linearly. Multi-column tables, skill progress bars, and floating text boxes scramble extracted text.',
+      points: 100,
+      time_limit_sec: 35,
+      sort_order: 4,
+      image_url: '/images/questions/resume-ats-audit.svg'
+    },
+
     ...level2QuestionBank,
 
     // =========================================================================
@@ -307,8 +370,8 @@ export function seedQuestions() {
     db.exec('DELETE FROM questions; DELETE FROM sqlite_sequence WHERE name = \'questions\';');
 
   const stmt = db.prepare(`
-    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order, is_practice)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO questions (level, category, prompt, option_a, option_b, option_c, option_d, correct_option, explanation, points, time_limit_sec, sort_order, is_practice, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const q of questions) {
@@ -325,7 +388,8 @@ export function seedQuestions() {
       q.points,
       q.time_limit_sec,
       q.sort_order,
-      (q as any).is_practice || 0
+      (q as any).is_practice || 0,
+      q.image_url || null
     );
   }
     db.exec('COMMIT');

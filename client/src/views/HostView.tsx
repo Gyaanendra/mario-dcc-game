@@ -12,6 +12,7 @@ export const HostView: React.FC = () => {
     cutoff, judgeNames, judgeReadiness, judgeMatrix, authenticateHost
   } = useGameSocket('HOST');
   const [pin, setPin] = useState('');
+  const [activeTab, setActiveTab] = useState<'round' | 'players' | 'judging' | 'danger'>('round');
   const [selectedFinalistId, setSelectedFinalistId] = useState('');
   const [judgeName, setJudgeName] = useState('');
   const [clarity, setClarity] = useState(3);
@@ -20,6 +21,14 @@ export const HostView: React.FC = () => {
   const [communication, setCommunication] = useState(3);
   const [remarks, setRemarks] = useState('');
   const [tieRound, setTieRound] = useState(1);
+  const [playerSearch, setPlayerSearch] = useState('');
+  const [playerFilter, setPlayerFilter] = useState<'all' | 'level1' | 'level2' | 'finalists'>('all');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
 
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
@@ -52,6 +61,12 @@ export const HostView: React.FC = () => {
         <button disabled={!isConnected} className="w-full min-h-12 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg font-bold focus-visible:outline-4 focus-visible:outline-yellow-300">{isConnected ? 'Enter control room' : 'Connecting…'}</button>
         {lastError && <p role="alert" className="text-red-300 text-sm">{lastError}</p>}
       </form>
+      {toastMsg && (
+        <aside aria-label="Notification" className="fixed bottom-6 right-6 z-50 bg-green-900 border-2 border-green-400 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm animate-fade-in">
+          <CheckCircle2 size={18} className="text-green-300" />
+          <span>{toastMsg}</span>
+        </aside>
+      )}
     </main>
   );
 
@@ -65,10 +80,227 @@ export const HostView: React.FC = () => {
           <button onClick={exportResults} className="flex items-center gap-2 px-3 py-2 min-h-11 rounded-lg border border-slate-500 hover:bg-slate-800 focus-visible:outline-4 focus-visible:outline-yellow-300"><Download size={17} /> Export CSV</button>
         </div>
       </header>
+      {toastMsg && (
+        <div role="status" className="bg-emerald-950 border-2 border-emerald-400 text-emerald-200 p-3 rounded-xl flex items-center justify-between text-sm animate-fade-in shadow-lg">
+          <span className="font-semibold">{toastMsg}</span>
+          <button onClick={() => setToastMsg(null)} className="underline text-xs">Dismiss</button>
+        </div>
+      )}
       {lastError && <div role="alert" className="flex justify-between items-start gap-3 bg-red-950 border-2 border-red-500 p-4 rounded-lg"><span><AlertCircle className="inline mr-2" size={18} />{lastError}</span><button onClick={clearError} className="underline">Dismiss</button></div>}
+
+      {/* Host Panel Section Navigation Tabs */}
+      <nav aria-label="Host panel sections" className="flex flex-wrap gap-2 border-b-2 border-slate-700 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('round')}
+          className={`px-4 py-2.5 rounded-xl font-pixel text-xs transition-all flex items-center gap-2 ${
+            activeTab === 'round'
+              ? 'bg-yellow-500 text-black font-bold shadow-lg ring-2 ring-yellow-300'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          <Play size={15} /> ROUND CONTROLS
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('players')}
+          className={`px-4 py-2.5 rounded-xl font-pixel text-xs transition-all flex items-center gap-2 ${
+            activeTab === 'players'
+              ? 'bg-yellow-500 text-black font-bold shadow-lg ring-2 ring-yellow-300'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          <Users size={15} /> PLAYERS &amp; ADVANCE ({counts.total})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('judging')}
+          className={`px-4 py-2.5 rounded-xl font-pixel text-xs transition-all flex items-center gap-2 ${
+            activeTab === 'judging'
+              ? 'bg-yellow-500 text-black font-bold shadow-lg ring-2 ring-yellow-300'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          <Trophy size={15} /> STAGE 3 JUDGING
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('danger')}
+          className={`px-4 py-2.5 rounded-xl font-pixel text-xs transition-all flex items-center gap-2 ${
+            activeTab === 'danger'
+              ? 'bg-red-600 text-white font-bold shadow-lg ring-2 ring-red-400'
+              : 'bg-slate-800 text-red-300 hover:bg-red-950/60'
+          }`}
+        >
+          <AlertTriangle size={15} /> EVENT RESET
+        </button>
+      </nav>
       <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)] gap-5">
-        <div className="space-y-5">
-          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="round-controls">
+
+        {/* PLAYERS & INDIVIDUAL ADVANCEMENT TAB */}
+        {activeTab === 'players' && (
+          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4 col-span-full" aria-labelledby="player-advancement">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
+              <div>
+                <h2 id="player-advancement" className="font-pixel text-sm text-yellow-300">
+                  PLAYER ROSTER &amp; INDIVIDUAL ADVANCEMENT
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Advance specific players to Level 2 or Bowser Stage. Advancing triggers a smooth cinematic warp transition on their device without disturbing others.
+                </p>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-sky-500/20 text-sky-300 border border-sky-400/40">
+                {counts.connected}/{counts.total} Online
+              </span>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-700 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPlayerFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'all' ? 'bg-yellow-400 text-black' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                >
+                  All ({leaderboard.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlayerFilter('level1')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level1' ? 'bg-yellow-400 text-black' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                >
+                  In Level 1 ({leaderboard.filter(p => !p.is_qualified_level2).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlayerFilter('level2')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level2' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                >
+                  In Level 2 ({leaderboard.filter(p => p.is_qualified_level2 && !p.is_qualified_level3).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlayerFilter('finalists')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'finalists' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                >
+                  Finalists ({leaderboard.filter(p => p.is_qualified_level3).length})
+                </button>
+              </div>
+
+              <div className="w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="Search by name or roll..."
+                  value={playerSearch}
+                  onChange={e => setPlayerSearch(e.target.value)}
+                  className="w-full sm:w-64 bg-slate-950 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-yellow-400"
+                />
+              </div>
+            </div>
+
+            {leaderboard.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-slate-900/60 rounded-xl border border-slate-800">
+                <p className="font-pixel text-xs text-yellow-300 mb-1">NO PLAYERS REGISTERED YET</p>
+                <p className="text-xs">Have students join on their phones via /play</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-700">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-yellow-300 font-pixel">
+                    <tr>
+                      <th className="p-3">#</th>
+                      <th className="p-3">Player</th>
+                      <th className="p-3">Roll No</th>
+                      <th className="p-3">Pillars</th>
+                      <th className="p-3">L1 Coins</th>
+                      <th className="p-3">L2 Coins</th>
+                      <th className="p-3">Stage Status</th>
+                      <th className="p-3 text-right">Advancement Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                    {leaderboard
+                      .filter(player => {
+                        const matchesSearch = !playerSearch.trim() ||
+                          player.name.toLowerCase().includes(playerSearch.toLowerCase()) ||
+                          player.student_id.toLowerCase().includes(playerSearch.toLowerCase());
+                        if (!matchesSearch) return false;
+                        if (playerFilter === 'finalists') return !!player.is_qualified_level3;
+                        if (playerFilter === 'level2') return !!player.is_qualified_level2 && !player.is_qualified_level3;
+                        if (playerFilter === 'level1') return !player.is_qualified_level2;
+                        return true;
+                      })
+                      .map((player, index) => {
+                      const isFinalist = !!player.is_qualified_level3;
+                      const isL2Qualified = !!player.is_qualified_level2;
+                      return (
+                        <tr key={player.id} className="hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 font-mono font-bold text-yellow-300">{index + 1}</td>
+                          <td className="p-3 font-semibold text-white">
+                            <span className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${player.is_connected ? 'bg-green-400' : 'bg-slate-500'}`} />
+                              {player.name}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono text-sky-200">{player.student_id}</td>
+                          <td className="p-3 font-mono">{player.completed_pipes ?? 0}/{totalPipes}</td>
+                          <td className="p-3 font-mono text-yellow-300 font-bold">{player.level1_score} 🪙</td>
+                          <td className="p-3 font-mono text-blue-300 font-bold">{player.level2_score} 🪙</td>
+                          <td className="p-3">
+                            {isFinalist ? (
+                              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono text-[10px]">
+                                👑 FINALIST
+                              </span>
+                            ) : isL2Qualified ? (
+                              <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-mono text-[10px]">
+                                ★ LEVEL 2
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-mono text-[10px]">
+                                LEVEL 1
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            {isFinalist ? (
+                              <span className="text-[11px] text-purple-300 font-mono">Stage 3 Ready</span>
+                            ) : isL2Qualified ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  send({ type: 'HOST_ADVANCE_PLAYER_LEVEL', playerId: player.id, targetLevel: 3 });
+                                  showToast(`👑 Advanced ${player.name} to Bowser Stage!`);
+                                }}
+                                className="event-button bg-purple-700 hover:bg-purple-600 text-white text-[11px] py-1 px-3 shadow"
+                              >
+                                👑 Advance to Boss Stage
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  send({ type: 'HOST_ADVANCE_PLAYER_LEVEL', playerId: player.id, targetLevel: 2 });
+                                  showToast(`⚡ Advanced ${player.name} to Level 2! Cinematic warp dispatched.`);
+                                }}
+                                className="event-button bg-blue-600 hover:bg-blue-500 text-white text-[11px] py-1 px-3 shadow"
+                              >
+                                ▶ Advance to Level 2
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ROUND & LEVEL CONTROL TAB */}
+        {activeTab === 'round' && (
+          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4 col-span-full max-w-4xl mx-auto w-full" aria-labelledby="round-controls">
             <div className="flex items-center justify-between border-b border-slate-700 pb-3">
               <h2 id="round-controls" className="font-pixel text-sm text-yellow-300">ROUND & LEVEL CONTROL</h2>
               <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-yellow-500/20 text-yellow-300 border border-yellow-400/40">
@@ -235,9 +467,12 @@ export const HostView: React.FC = () => {
               </div>
             )}
           </section>
+        )}
 
-          {/* BOSS STAGE SECTION */}
-          <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="final-controls">
+        {/* STAGE 3 JUDGING TAB */}
+        {activeTab === 'judging' && (
+          <>
+            <section className="bg-[#192134] border-2 border-slate-600 rounded-xl p-5 space-y-4" aria-labelledby="final-controls">
             <h2 id="final-controls" className="font-pixel text-sm text-purple-300">STAGE 3: BOWSER BOSS ARENA (TOP 10)</h2>
             <label htmlFor="speaker" className="block text-sm font-semibold">Current Finalist Speaker</label>
             <select
@@ -272,10 +507,9 @@ export const HostView: React.FC = () => {
               </button>
             </div>
           </section>
-        </div>
 
-        <div className="space-y-5">
-          <form onSubmit={scoreJudge} className="bg-[#192134] border-2 border-purple-500 rounded-xl p-5 space-y-4" aria-labelledby="judge-form">
+          <div className="space-y-5">
+            <form onSubmit={scoreJudge} className="bg-[#192134] border-2 border-purple-500 rounded-xl p-5 space-y-4" aria-labelledby="judge-form">
             <h2 id="judge-form" className="font-pixel text-sm text-purple-300">JUDGE RUBRIC</h2>
             <p className="text-sm text-slate-300">Each named judge scores every finalist independently. Scores average out of 20.</p>
             <label className="block text-sm">Finalist<select value={currentFinalistId} onChange={e => setSelectedFinalistId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-500 rounded-lg p-3"><option value="">Select</option>{finalists.map(f => <option key={f.id} value={f.id}>{f.name} · {f.student_id}</option>)}</select></label>
@@ -303,8 +537,13 @@ export const HostView: React.FC = () => {
             <button disabled={!judgeReadiness?.ready} onClick={() => { if (window.confirm('A second team member has checked all scores and winners?')) send({ type: 'HOST_VERIFY_RESULTS' }); }} className="event-button bg-green-700 w-full disabled:opacity-40"><ShieldCheck size={17} /> Mark independently verified</button>
             <button disabled={!gameState.results_verified} onClick={() => { if (window.confirm('Reveal the verified podium on the projector?')) send({ type: 'HOST_FINISH_AND_PODIUM' }); }} className="event-button bg-yellow-500 text-black w-full disabled:opacity-40"><Trophy size={17} /> Reveal podium</button>
           </section>
+        </div>
+      </>
+    )}
 
-          <section className="bg-red-950/20 border-2 border-red-500/60 rounded-xl p-5 space-y-4" aria-labelledby="danger-zone">
+    {/* EVENT RESET DANGER TAB */}
+    {activeTab === 'danger' && (
+      <section className="bg-red-950/20 border-2 border-red-500/60 rounded-xl p-5 space-y-4 col-span-full max-w-2xl mx-auto w-full" aria-labelledby="danger-zone">
             <div className="flex items-center gap-2 text-red-400">
               <AlertTriangle size={20} className="animate-pulse" />
               <h2 id="danger-zone" className="font-pixel text-sm tracking-wider uppercase">DANGER ZONE: EVENT RESET</h2>
@@ -358,7 +597,7 @@ export const HostView: React.FC = () => {
               </div>
             </div>
           </section>
-        </div>
+        )}
       </div>
     </main>
   );

@@ -19,6 +19,7 @@ const publicQuestion = (question: Question, reveal: boolean) => ({
   prompt: question.prompt, option_a: question.option_a, option_b: question.option_b,
   option_c: question.option_c, option_d: question.option_d, points: question.points,
   time_limit_sec: question.time_limit_sec, sort_order: question.sort_order, is_practice: question.is_practice,
+  image_url: question.image_url ?? null,
   correct_option: reveal ? question.correct_option : null,
   explanation: reveal ? question.explanation : null
 });
@@ -92,12 +93,13 @@ export class GameManager {
   setPipeReady(id: string, ready: boolean, pipeIndex?: number) {
     const player = this.db.getPlayerById(id);
     if (!player) throw new Error('Join before entering a pipe');
-    const level = this.db.getGameState().current_level;
+    const state = this.db.getGameState();
+    const level = (state.current_level >= 2 || player.is_qualified_level2) ? 2 : (state.current_level || 1);
     const eligible = level <= 2;
     const wasReady = this.pipeReadyPlayers.has(id);
     if (ready && eligible) this.pipeReadyPlayers.add(id);
     else this.pipeReadyPlayers.delete(id);
-    const pipeCount = level <= 2 ? this.db.getPipeQuestQuestions(level || 1).length : 0;
+    const pipeCount = level <= 2 ? this.db.getPipeQuestQuestions(level).length : 0;
     const previousIndex = this.pipeIndices.get(id);
     if (ready && eligible && Number.isInteger(pipeIndex) && pipeIndex! >= 0 && pipeIndex! < pipeCount) {
       this.pipeIndices.set(id, pipeIndex!);
@@ -117,7 +119,8 @@ export class GameManager {
 
   getPipeQuestPayload(id: string) {
     const state = this.db.getGameState();
-    const level = state.current_level || 1;
+    const player = this.db.getPlayerById(id);
+    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
     const questions = this.db.getPipeQuestQuestions(level);
     const progress = this.db.getPipeQuestProgress(id, level);
     const pipeIndex = this.pipeIndices.get(id);
@@ -132,9 +135,9 @@ export class GameManager {
     const state = this.db.getGameState();
     if (state.game_status === 'ENDED' || state.game_status === 'PODIUM_WINNERS')
       throw new Error('The event has concluded');
-    const level = state.current_level || 1;
-    if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     const player = this.db.getPlayerById(id);
+    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
+    if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     if (!player || level > 2)
       throw new Error('You are watching this round as a spectator');
     const questions = this.db.getPipeQuestQuestions(level);
@@ -153,9 +156,9 @@ export class GameManager {
 
   claimFlagpoleBonus(id: string) {
     const state = this.db.getGameState();
-    const level = state.current_level || 1;
-    if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     const player = this.db.getPlayerById(id);
+    const level = (state.current_level >= 2 || player?.is_qualified_level2) ? 2 : (state.current_level || 1);
+    if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     if (!player || level > 2)
       throw new Error('You are watching this round as a spectator');
     const progress = this.db.getPipeQuestProgress(id, level);
@@ -482,6 +485,31 @@ export class GameManager {
     this.db.updateGameState({ game_status: 'PODIUM_WINNERS', speaker_running: 0, speaker_deadline_at: null } as any);
     this.broadcastSyncToAll();
   }
+  advancePlayerLevel(playerId: string, targetLevel: number) {
+    const player = this.db.getPlayerById(playerId);
+    if (!player) throw new Error('Player not found');
+    if (![2, 3].includes(targetLevel)) throw new Error('Target level must be 2 or 3');
+    this.db.advancePlayerQualification(playerId, targetLevel);
+
+    const ws = this.playerSockets.get(playerId);
+    if (ws) {
+      this.send(ws, {
+        type: 'PLAYER_LEVEL_ADVANCE',
+        playerId,
+        targetLevel,
+        levelTitle: targetLevel === 2 ? 'WORLD 2-1: CAREER MASTERY' : 'STAGE 3: BOWSER ARENA',
+        message: targetLevel === 2
+          ? 'STAGE 1 CLEARED! ADVANCING TO WORLD 2-1'
+          : 'FINALIST QUALIFIED! ENTERING BOWSER ARENA',
+        timestamp: Date.now()
+      });
+      this.send(ws, this.getPlayerSyncPayload(playerId));
+      this.send(ws, this.getPipeQuestPayload(playerId));
+    }
+
+    this.broadcastSyncToAll();
+  }
+
   resetGame(wipePlayers: boolean = false) {
     this.db.resetGame(wipePlayers);
     this.pipeReadyPlayers.clear();

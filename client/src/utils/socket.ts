@@ -19,13 +19,21 @@ export interface PlayerData {
   level1_score: number; level2_score: number; level3_score: number;
   total_coins: number; is_qualified_level2: number; is_qualified_level3: number;
   completed_pipes?: number;
+  is_connected?: number;
 }
 export interface QuestionData {
   id: number; level: number; category: string; prompt: string;
   option_a: string; option_b: string; option_c?: string | null; option_d?: string | null;
   time_limit_sec: number; points: number; is_practice?: number;
   sort_order?: number;
+  image_url?: string | null;
   correct_option?: string | null; explanation?: string | null;
+}
+export interface LevelAdvanceEvent {
+  targetLevel: number;
+  message: string;
+  levelTitle?: string;
+  timestamp?: number;
 }
 export interface PipeQuestState {
   totalPipes: number;
@@ -96,6 +104,8 @@ export interface SocketHookState {
   clearPipeQuestResult: () => void;
   authenticateHost: (pin: string) => void;
   clearError: () => void;
+  levelAdvanceEvent: LevelAdvanceEvent | null;
+  clearLevelAdvance: () => void;
 }
 const initialGameState: GameState = {
   current_level: 0, game_status: 'LOBBY', active_question_id: null,
@@ -137,6 +147,8 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
   const [lastError, setLastError] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [speakerRemainingMs, setSpeakerRemainingMs] = useState(120000);
+  const [levelAdvanceEvent, setLevelAdvanceEvent] = useState<LevelAdvanceEvent | null>(null);
+  const clearLevelAdvance = () => setLevelAdvanceEvent(null);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldReconnect = useRef(true);
@@ -215,6 +227,14 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
             nextPipeIndex: data.nextPipeIndex, question: data.question }); break;
           case 'PIPE_QUEST_RESULT': setPipeQuestResult(data); setPipeQuestPending(false); break;
           case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
+          case 'PLAYER_LEVEL_ADVANCE':
+            setLevelAdvanceEvent({
+              targetLevel: data.targetLevel,
+              message: data.message,
+              levelTitle: data.levelTitle || (data.targetLevel === 2 ? 'WORLD 2-1: CAREER MASTERY' : 'STAGE 3: BOWSER ARENA'),
+              timestamp: data.timestamp || Date.now()
+            });
+            break;
           case 'ERROR_MSG': setAnswerPending(false); setPipeQuestPending(false); setLastError(data.message); break;
         }
       } catch (error) { console.error('[WS message]', error); }
@@ -272,5 +292,5 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
     judgeReadiness, judgeMatrix, levelQuestions, publicJoinUrl, lastError, remainingSeconds, speakerRemainingMs,
     totalPipes,
     send, joinAsPlayer, submitAnswer, submitPipeQuestAnswer, clearPipeQuestResult,
-    authenticateHost, clearError };
+    authenticateHost, clearError, levelAdvanceEvent, clearLevelAdvance };
 }

@@ -14,7 +14,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Interviewers probe leadership claims, and a discovered exaggeration costs far more than an honest, smaller claim. A leaves the false claim in place and hopes nobody checks, B doubles down with a stretched story that collapses at the first follow-up, and C gives up the interview when the error is easily fixable.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 1
+    "sort_order": 1,
+    "image_url": "/images/questions/offer-letter-redflag.svg"
   },
   {
     "level": 2,
@@ -28,7 +29,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Headline and skills drive recruiter search and the first impression. A adds connections without adding relevance, B is cosmetic and does not affect search, and D adds length and personal story without keywords or proof of ML skills.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 2
+    "sort_order": 2,
+    "image_url": "/images/questions/resume-ats-audit.svg"
   },
   {
     "level": 2,
@@ -42,7 +44,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It is specific (role, ID), shows relevant evidence, and makes a small, low-effort ask that opens a conversation. A asks for a referral with no context or evidence, B is flattery with only a vague ask, and C requests a bulk favour that shows no targeting.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 3
+    "sort_order": 3,
+    "image_url": "/images/questions/git-workflow.svg"
   },
   {
     "level": 2,
@@ -56,7 +59,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "On imbalanced data, accuracy hides failure to catch the minority class: a model that never flags fraud still scores 99%. B, C and D are minor points (how high the number looks, a missing link, a weak verb) and none is the flaw an interviewer will press on. This is a classic critical-thinking trap on resumes.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 4
+    "sort_order": 4,
+    "image_url": "/images/questions/system-architecture.svg"
   },
   {
     "level": 2,
@@ -84,7 +88,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It shows a method (same request, same data, repeated runs), attributes the gain to specific changes, and states the limits honestly. A rests on someone else’s opinion and B on an unrecorded one-off measurement, so neither can be defended. D refuses a question about the candidate’s own method, which can be answered without revealing confidential details.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 6
+    "sort_order": 6,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -98,7 +103,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It frames a small pilot as a purposeful, honest step and shows engineering judgment about what scaling needs. B undermines the work by presenting it as a failure to get users, C dodges the question by dismissing the user count, and D postpones scaling to a job offer without showing what it needs.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 7
+    "sort_order": 7,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -112,7 +118,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It is now the only bullet with no scope or outcome. A hides a field that may be required, B removes proof, and C would undo the honest grouping of skills.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 8
+    "sort_order": 8,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -126,7 +133,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "It states the target, the real stack and the real stage. A overclaims, C says nothing searchable, and D turns a 3-week internship into a job title he does not hold.",
     "points": 100,
     "time_limit_sec": 60,
-    "sort_order": 9
+    "sort_order": 9,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
@@ -140,7 +148,8 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "explanation": "Preferred items are flexible and required items are matched, so he should apply honestly. A and D are false claims, and B gives up a viable opportunity over skills that are only preferred.",
     "points": 100,
     "time_limit_sec": 75,
-    "sort_order": 10
+    "sort_order": 10,
+    "image_url": "/images/level2-aditya-resume.png"
   },
   {
     "level": 2,
