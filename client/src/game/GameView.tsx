@@ -12,6 +12,8 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const lastPipeCueRef = useRef<string | null>(null);
+  const lastAnswerCueRef = useRef<string | null>(null);
   const [pipeIndex, setPipeIndex] = useState<number | null>(null);
   const [closedDemoPipeIndex, setClosedDemoPipeIndex] = useState<number | null>(null);
   const [locallyPaused, setLocallyPaused] = useState(false);
@@ -129,6 +131,24 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
   const totalPipes = socket.pipeQuest.totalPipes || (effectiveLevel === 2 ? 25 : 15);
   const levelScore = effectiveLevel === 2 ? socket.player?.level2_score : socket.player?.level1_score;
+
+  useEffect(() => {
+    if (!questionVisible || !isDemoQuestion || !pipeRunQuestion || demoResult) return;
+    const key = `${effectiveLevel}:${pipeRunQuestion.id}:${pipeIndex}`;
+    if (lastPipeCueRef.current === key) return;
+    lastPipeCueRef.current = key;
+    gameAudio.pipeOpen();
+  }, [questionVisible, isDemoQuestion, pipeRunQuestion, demoResult, effectiveLevel, pipeIndex]);
+
+  useEffect(() => {
+    const result = socket.pipeQuestResult;
+    if (!result || result.question.level !== effectiveLevel) return;
+    const key = `${effectiveLevel}:${result.question.id}:${result.pipeIndex}`;
+    if (lastAnswerCueRef.current === key) return;
+    lastAnswerCueRef.current = key;
+    if (result.isCorrect) gameAudio.answerCorrect();
+    else gameAudio.answerIncorrect();
+  }, [socket.pipeQuestResult, effectiveLevel]);
 
   const handleAnswerSubmit = (key: string) => {
     if (isDemoQuestion) {

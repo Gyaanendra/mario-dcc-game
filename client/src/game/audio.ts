@@ -7,7 +7,7 @@ function getCtx(): AudioContext | null {
     if (!AC) return null;
     ctx = new AC();
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
   return ctx;
 }
 
@@ -28,6 +28,28 @@ function playNote(freq: number, duration: number, type: OscillatorType = 'square
   osc.stop(now + duration);
 }
 
+function playSweep(startFreq: number, endFreq: number, duration: number, type: OscillatorType, volume: number) {
+  if (muted) return;
+  const c = getCtx();
+  if (!c) return;
+  const now = c.currentTime;
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(startFreq, now);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  osc.connect(gain);
+  gain.connect(c.destination);
+  osc.start(now);
+  osc.stop(now + duration);
+}
+
+function playSequence(notes: number[], duration: number, spacing: number, type: OscillatorType, volume: number) {
+  notes.forEach((freq, index) => playNote(freq, duration, type, volume, index * spacing));
+}
+
 export const gameAudio = {
   toggleMute(): boolean {
     muted = !muted;
@@ -37,6 +59,28 @@ export const gameAudio = {
 
   isMuted(): boolean {
     return muted;
+  },
+
+  // Short original arcade cues for the pipe quiz. No audio is sampled from a game or video.
+  pipeOpen() {
+    playSweep(240, 510, 0.2, 'triangle', 0.11);
+    playNote(660, 0.12, 'square', 0.055, 0.12);
+  },
+
+  answerCorrect() {
+    playSequence([440, 554, 740], 0.14, 0.09, 'triangle', 0.12);
+  },
+
+  answerIncorrect() {
+    playSequence([294, 196], 0.19, 0.13, 'sawtooth', 0.075);
+  },
+
+  checkpoint() {
+    playSequence([392, 587], 0.1, 0.09, 'sine', 0.09);
+  },
+
+  levelUp() {
+    playSequence([392, 494, 622, 784], 0.2, 0.13, 'triangle', 0.11);
   },
 
   jump() {

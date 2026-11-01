@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, Trophy, ArrowRight, Zap } from 'lucide-react';
 import { MarioSprite, LuigiSprite } from '../utils/pixelSprites';
 import { gameAudio } from './audio';
@@ -22,42 +22,13 @@ export const LevelTransitionOverlay: React.FC<LevelTransitionOverlayProps> = ({
 }) => {
   const [phase, setPhase] = useState<'stage_clear' | 'warp_portal' | 'world_intro'>('stage_clear');
   const [progress, setProgress] = useState(0);
+  const playedCueRef = useRef(false);
 
-  // Retro 8-bit fanfare audio using Web Audio API
+  // Play the same original, mute-aware cue used by the rest of the game.
   useEffect(() => {
-    if (gameAudio.isMuted()) return;
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      // Classic Mario Stage-Clear Fanfare notes (G4, C5, E5, G5, C6)
-      const notes = [
-        { freq: 392.00, time: 0.05, dur: 0.12 }, // G4
-        { freq: 523.25, time: 0.20, dur: 0.12 }, // C5
-        { freq: 659.25, time: 0.35, dur: 0.12 }, // E5
-        { freq: 783.99, time: 0.50, dur: 0.18 }, // G5
-        { freq: 1046.50, time: 0.72, dur: 0.40 }, // C6
-      ];
-
-      notes.forEach(({ freq, time, dur }) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime + time);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + time + dur);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + time);
-        osc.stop(ctx.currentTime + time + dur + 0.05);
-      });
-    } catch {
-      // Audio autoplay policy fallback
-    }
+    if (playedCueRef.current) return;
+    playedCueRef.current = true;
+    gameAudio.levelUp();
   }, []);
 
   // Progression timer: Stage Clear (1.2s) -> Warp Portal (1.2s) -> World Intro (1.2s) -> finish

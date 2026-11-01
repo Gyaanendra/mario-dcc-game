@@ -999,7 +999,7 @@ export class GameEngine {
       if (Math.abs(p.pos.x - cp.pos.x) < TILE && Math.abs(p.pos.y - cp.pos.y) < TILE * 2) {
         cp.activated = true;
         this.lastCheckpointPos = { x: cp.pos.x, y: cp.pos.y - TILE };
-        gameAudio.coin();
+        gameAudio.checkpoint();
       }
     }
   }
