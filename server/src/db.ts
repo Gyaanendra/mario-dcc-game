@@ -209,7 +209,7 @@ export class DatabaseManager {
     this.db.prepare(sql).run(...values);
   }
 
-  resetGame() {
+  resetGame(wipePlayers: boolean = false) {
     this.db.exec(`
       UPDATE game_state SET
         current_level = 0,
@@ -228,20 +228,27 @@ export class DatabaseManager {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1;
 
-      UPDATE players SET
-        level1_score = 0,
-        level2_score = 0,
-        level3_score = 0,
-        is_qualified_level2 = 0,
-        is_qualified_level3 = 0;
-
       DELETE FROM player_answers;
       DELETE FROM pipe_quest_answers;
+      DELETE FROM flagpole_finishes;
       DELETE FROM judge_scores;
       DELETE FROM cutoff_state;
       DELETE FROM final_tiebreak_scores;
       DELETE FROM opened_questions;
     `);
+
+    if (wipePlayers) {
+      this.db.exec(`DELETE FROM players;`);
+    } else {
+      this.db.exec(`
+        UPDATE players SET
+          level1_score = 0,
+          level2_score = 0,
+          level3_score = 0,
+          is_qualified_level2 = 0,
+          is_qualified_level3 = 0;
+      `);
+    }
   }
 
   // --- Player Methods ---

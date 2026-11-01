@@ -116,7 +116,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
           break;
         case 'HOST_VERIFY_RESULTS': gameManager.verifyResults(); break;
         case 'HOST_FINISH_AND_PODIUM': gameManager.finishAndShowPodium(); break;
-        case 'HOST_RESET_GAME': gameManager.resetGame(); break;
+        case 'HOST_RESET_GAME': gameManager.resetGame(Boolean(data.wipePlayers)); break;
         case 'HOST_RECOVER_PLAYER': {
           const { sessionToken, playerId } = dbManager.reissueSession(String(data.studentId));
           gameManager.disconnectPlayer(playerId);

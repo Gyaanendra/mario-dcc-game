@@ -278,3 +278,34 @@ test('50-player and 10-player boundaries include no tied extra place', () => {
     assert.equal(x.db.getPlayerById(players[10].id)?.is_qualified_level3, 0);
   } finally { x.cleanup(); }
 });
+
+test('resetGame preserves players on normal reset and wipes players on factory reset', () => {
+  const x = fixture();
+  try {
+    const p1 = player(x.db, 'RESET1');
+    const p2 = player(x.db, 'RESET2');
+    x.manager.startLevel(1);
+    x.manager.setPipeReady(p1.id, true, 0);
+    x.manager.submitPipeQuestAnswer(p1.id, 0, 2, 'A');
+    x.manager.claimFlagpoleBonus(p1.id);
+
+    assert.equal(x.db.getGameState().current_level, 1);
+    assert.ok((x.db.getPlayerById(p1.id)?.level1_score ?? 0) > 0);
+    assert.equal(x.db.getPlayerCount().total, 2);
+
+    // Mode A: Reset scores & return to lobby, preserving players
+    x.manager.resetGame(false);
+    assert.equal(x.db.getGameState().game_status, 'LOBBY');
+    assert.equal(x.db.getGameState().current_level, 0);
+    assert.equal(x.db.getPlayerCount().total, 2);
+    assert.equal(x.db.getPlayerById(p1.id)?.level1_score, 0);
+    assert.equal(x.db.hasFlagpoleClaimed(p1.id, 1), false);
+
+    // Mode B: Full Factory Reset
+    x.manager.resetGame(true);
+    assert.equal(x.db.getGameState().game_status, 'LOBBY');
+    assert.equal(x.db.getPlayerCount().total, 0);
+    assert.equal(x.db.getPlayerById(p1.id), undefined);
+    assert.equal(x.db.getPlayerById(p2.id), undefined);
+  } finally { x.cleanup(); }
+});

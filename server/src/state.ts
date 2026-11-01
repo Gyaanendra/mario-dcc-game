@@ -440,8 +440,32 @@ export class GameManager {
     this.db.updateGameState({ game_status: 'PODIUM_WINNERS', speaker_running: 0, speaker_deadline_at: null } as any);
     this.broadcastSyncToAll();
   }
-  resetGame() { this.db.resetGame(); this.pipeReadyPlayers.clear(); this.pipeIndices.clear(); this.broadcastSyncToAll();
-    for (const [id, ws] of this.playerSockets) this.send(ws, this.getPipeQuestPayload(id)); }
+  resetGame(wipePlayers: boolean = false) {
+    this.db.resetGame(wipePlayers);
+    this.pipeReadyPlayers.clear();
+    this.pipeIndices.clear();
+
+    if (wipePlayers) {
+      for (const [, ws] of this.playerSockets) {
+        this.send(ws, {
+          type: 'SESSION_EXPIRED',
+          message: 'The event host has reset the event and cleared player registrations.'
+        });
+        try { ws.close(); } catch {}
+      }
+      this.playerSockets.clear();
+    }
+
+    this.broadcastSyncToAll();
+    this.broadcastCounts();
+    this.broadcastPipeReadyCount();
+
+    if (!wipePlayers) {
+      for (const [id, ws] of this.playerSockets) {
+        this.send(ws, this.getPipeQuestPayload(id));
+      }
+    }
+  }
 }
 
 export const gameManager = new GameManager();

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGameSocket } from '../utils/socket';
 import { FINAL_FOLLOW_UP } from '../utils/gameContent';
-import { AlertCircle, CheckCircle2, Clock, Download, Lock, Play, ShieldCheck, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Download, Lock, Play, RotateCcw, ShieldCheck, Trash2, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
 
 const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -170,7 +170,61 @@ export const HostView: React.FC = () => {
             <input aria-label="Roll number for session recovery" placeholder="Roll number" value={recoveryId} onChange={e => setRecoveryId(e.target.value)} className="w-full bg-slate-950 border border-slate-500 rounded-lg p-3" />
             <button onClick={() => send({ type: 'HOST_RECOVER_PLAYER', studentId: recoveryId })} disabled={!recoveryId.trim()} className="event-button bg-slate-700 disabled:opacity-40">Issue recovery link</button>
             {recoveryToken && <div className="break-all text-xs bg-slate-950 p-3 rounded-lg"><p>For {recoveryToken.studentId}:</p><p>{`${window.location.origin}/play?session=${encodeURIComponent(recoveryToken.sessionToken)}`}</p><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/play?session=${encodeURIComponent(recoveryToken.sessionToken)}`)} className="underline text-yellow-300 mt-2">Copy link</button></div>}
-            <button onClick={() => { if (window.confirm('Reset all scores, answers, and cut-offs? This cannot be undone.')) send({ type: 'HOST_RESET_GAME' }); }} className="text-red-300 underline text-sm">Reset event scores</button>
+          </section>
+
+          <section className="bg-red-950/20 border-2 border-red-500/60 rounded-xl p-5 space-y-4" aria-labelledby="danger-zone">
+            <div className="flex items-center gap-2 text-red-400">
+              <AlertTriangle size={20} className="animate-pulse" />
+              <h2 id="danger-zone" className="font-pixel text-sm tracking-wider uppercase">DANGER ZONE: EVENT RESET</h2>
+            </div>
+            <p className="text-xs text-red-200/80 leading-relaxed">
+              Use these controls to reset the live event. Choose carefully between resetting the round scores while keeping students logged in, or performing a complete wipe.
+            </p>
+
+            <div className="space-y-3 pt-2">
+              <div className="p-3 bg-slate-900/80 border border-amber-500/30 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm text-amber-300">Option A: Reset to Lobby (Keep Players)</span>
+                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/40">Safe Restart</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Resets game round back to Level 0 Lobby. Wipes scores, question answers, pipe quests, flagpole claims, and cutoffs. All registered students remain connected on their phones and return to the lobby waiting room.
+                </p>
+                <button
+                  onClick={() => {
+                    if (window.confirm("⚠️ RESET TO LOBBY:\n\nThis will reset all scores, answers, pipe quests, and cut-offs back to Level 0 Lobby.\n\nPlayers will STAY registered and connected in the waiting room.\n\nAre you sure you want to proceed?")) {
+                      send({ type: 'HOST_RESET_GAME', wipePlayers: false });
+                    }
+                  }}
+                  className="event-button bg-amber-600 hover:bg-amber-500 text-white w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <RotateCcw size={16} /> Reset Scores & Return to Lobby
+                </button>
+              </div>
+
+              <div className="p-3 bg-red-950/40 border border-red-600/40 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm text-red-300">Option B: Full Factory Reset (Wipe Everything)</span>
+                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-red-600/20 text-red-300 rounded border border-red-600/40">Full Wipe</span>
+                </div>
+                <p className="text-xs text-red-200/70">
+                  Permanently deletes all registered students and session tokens. All connected student devices will be kicked back to the registration screen. Resets all game progress and tables to zero.
+                </p>
+                <button
+                  onClick={() => {
+                    const confirmInput = window.prompt("🚨 FULL FACTORY RESET:\n\nThis will permanently DELETE all registered players, wipe all answers, scores, and tokens, and return ALL student phones to the registration screen.\n\nType 'RESET' to confirm:");
+                    if (confirmInput === 'RESET') {
+                      send({ type: 'HOST_RESET_GAME', wipePlayers: true });
+                    } else if (confirmInput !== null) {
+                      alert("Factory reset cancelled (you did not type 'RESET').");
+                    }
+                  }}
+                  className="event-button bg-red-700 hover:bg-red-600 text-white w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <Trash2 size={16} /> Full Factory Reset (Wipe All Players)
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       </div>
