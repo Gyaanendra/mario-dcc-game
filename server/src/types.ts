@@ -18,6 +18,9 @@ export type QuestionCategory =
   | 'MYTH OR FACT?'
   | 'CHOOSE WISELY'
   | 'RED FLAG'
+  | 'RESUME_LINKEDIN'
+  | 'RESUME_CASE'
+  | 'MYTH_OR_FACT'
   | 'SUDDEN_DEATH';
 
 export interface Question {

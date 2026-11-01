@@ -9,13 +9,13 @@ A live side-scrolling arcade quiz show for Dean Career Cloud at Bennett Universi
 | 0:00–0:15 | Registration and QR join |
 | 0:15–0:25 | Rules, scoring, practice question |
 | 0:25–1:05 | Level 1: 15 career basics questions |
-| 1:05–1:15 | Verify scores; top 50 advance |
-| 1:15–2:05 | Level 2: 20 myths, decisions, and red flags |
+| 1:05–1:15 | Verify Level 1 scores; record the top 50 |
+| 1:15–2:05 | Level 2: 25 resume, LinkedIn, and Myth/Fact pipe questions |
 | 2:05–2:15 | Verify scores; top 10 advance |
 | 2:15–2:55 | Final career case; up to two minutes per finalist |
 | 2:55–3:00 | Verify winners and reveal podium |
 
-The world has no collectible coins or question-mark blocks; pipe contact opens questions. Each correct quiz answer earns **100 points plus up to 20 speed points** measured by the server. Practice and sudden-death questions earn no quiz points. Level 1 score selects the top 50; **Level 2 score alone** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
+The world has no collectible coins or question-mark blocks; pipe contact opens questions. Level 1 has ten scored pipes. After Level 1 ends, the host starts World 2-1 for every registered player with 25 pipes: all 10 MCQs and 15 Myth/Fact items from the supplied Level 2 bank. The five resume case questions show the corrected resume on each phone. Each correct pipe answer earns **100 points plus up to 50 speed points** measured by the server from pipe contact. Practice and sudden-death questions earn no quiz points. The Level 1 top 50 can be recorded for recognition, but it is not an entry gate: every registered player can play Level 2, and **Level 2 score alone across all players** selects the top 10. A tie at a cut-off opens a sudden-death question only for tied players. Correct answers take the open slots, with server-measured response time separating multiple correct answers; further prepared questions resolve any remaining tie. The final uses each named judge's four 0–5 rubric scores, averaged out of 20. Quiz coins do not rank finalists. A podium tie uses this common follow-up: **“What single piece of new evidence would change your choice between these internships, and why?”** Judges score clarity and reasoning. A second event team member must verify results before the host can reveal the podium.
 
 ## Requirements and setup
 
@@ -39,14 +39,14 @@ These environment variables must be exported to the server process or configured
 
 Each enrolment number or student email can register once. Case and separators in an enrolment number (spaces, hyphens, dots, and underscores) do not create another registration. Players return on the original browser through automatic session reconnection; a normal game reset keeps registrations.
 
-`DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with live or pipe-run answers. Review all question wording and answer keys with the DCC content team before the event.
+`DATA_DIR` must be outside the deployed source tree on persistent storage. The SQLite database is created there. The sample database from the old repository was simulated load-test data and has been removed from version control. Run `npm run seed` only before questions have been played; the command refuses to alter a database with live or pipe-run answers. On startup, the server installs the supplied Level 2 bank into an existing database only if Level 2 has not begun; it preserves Level 1 players, answers, and scores. Review all question wording and answer keys with the DCC content team before the event.
 
 ## Rehearsal and fallback
 
 1. Open `/projector` on the lecture hall display and `/host` on the operator laptop. Scan the QR using a venue Wi-Fi phone and a mobile-data phone. The QR targets `PUBLIC_JOIN_URL` or the current origin plus `/play`.
 2. Have players use ← → or A/D to move and Space or ↑ to jump onto a pipe; phones show touch controls in portrait and landscape. In the lobby, the first ten seeded questions open one per pipe with immediate feedback and saved practice progress. The host can see how many eligible players are standing on pipes. Open the live practice question, verify that it only appears at a pipe and awards zero quiz points, then run a scored question through open → lock → reveal. A phone refresh or network switch restores its player and locked answer via a random session token.
    Automatic reconnection works in the same browser. There is no host-issued recovery link or token-entry form; use the paper score sheets if a participant loses access to that browser.
-3. Run the full 15 + 20 question sequence, check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
+3. Run the Level 1 pipe route, show the Level 1 leaderboard (and optionally record the top 50), then start Level 2 for everyone from the host controls, and check all 25 pipe questions and the corrected resume card on a portrait phone. Check the cut-off CSV exports with a second scorer, rehearse a sudden-death tie, score all finalists, and check the speaker timer and podium gate.
 4. Prepare printed questions, a private answer key, manual score sheets, and the final case:
 
 ```sh

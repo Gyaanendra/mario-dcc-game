@@ -59,7 +59,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       if (type === 'CLIENT_PIPE_ANSWER') {
         if (!boundPlayerId) throw new Error('Join before answering');
         const result = gameManager.submitPipeQuestAnswer(boundPlayerId, Number(data.pipeIndex),
-          Number(data.questionId), String(data.selectedOption || ''), Number(data.responseTimeMs || 0));
+          Number(data.questionId), String(data.selectedOption || ''));
         send(result);
         send(gameManager.getPipeQuestPayload(boundPlayerId));
         return;

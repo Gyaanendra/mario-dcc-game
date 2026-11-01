@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseManager } from './db.js';
 import { GameManager } from './state.js';
+import { level2QuestionBank } from './level2QuestionBank.js';
 
 function fixture() {
   const dir = mkdtempSync(path.join(tmpdir(), 'mcq-test-'));
@@ -44,6 +45,81 @@ test('lobby pipe quest uses seeded questions, reveals immediately, and leaves ev
     x.manager.setPipeReady(p.id, false);
     x.manager.setPipeReady(p.id, true, 1);
     assert.equal(x.manager.getPipeQuestPayload(p.id).question?.prompt, 'Second pipe');
+  } finally { x.cleanup(); }
+});
+
+test('host starts a separate 25-pipe Level 2 for all players, with its own score and finish', () => {
+  const x = fixture();
+  try {
+    assert.equal(level2QuestionBank.length, 25);
+    const finalist = player(x.db, 'L2A');
+    x.manager.startLevel(1);
+    x.manager.setPipeReady(finalist.id, true, 0);
+    const firstLevel1 = x.manager.getPipeQuestPayload(finalist.id).question!;
+    x.manager.submitPipeQuestAnswer(finalist.id, 0, firstLevel1.id, 'A');
+    const level1Score = x.db.getPlayerById(finalist.id)!.level1_score;
+    assert.equal(x.db.getPipeQuestProgress(finalist.id, 1).completedPipes, 1);
+    assert.equal(x.db.installLevel2Questions(level2QuestionBank), 'installed');
+    assert.equal(x.db.getPlayerById(finalist.id)?.level1_score, level1Score);
+    assert.equal(x.db.getPipeQuestProgress(finalist.id, 1).completedPipes, 1);
+    x.manager.executeCutoff(2);
+    assert.equal(x.db.getPlayerById(finalist.id)?.is_qualified_level2, 1);
+    const outsideTop50 = player(x.db, 'L2B');
+    assert.equal(x.db.getPlayerById(outsideTop50.id)?.is_qualified_level2, 0);
+    x.manager.startLevel(2);
+    assert.equal(x.manager.getPipeQuestPayload(finalist.id).totalPipes, 25);
+    assert.equal(x.manager.getPipeQuestPayload(finalist.id).completedPipes, 0);
+    assert.equal(x.manager.getPipeQuestPayload(outsideTop50.id).completedPipes, 0);
+    x.manager.setPipeReady(outsideTop50.id, true, 0);
+    const openForEveryone = x.manager.getPipeQuestPayload(outsideTop50.id).question!;
+    assert.equal(openForEveryone.sort_order, 1);
+    assert.equal(x.manager.submitPipeQuestAnswer(outsideTop50.id, 0,
+      openForEveryone.id, level2QuestionBank[0].correct_option).isCorrect, true);
+    assert.ok(x.db.getPlayerById(outsideTop50.id)!.level2_score > 0);
+    assert.equal(x.manager.claimFlagpoleBonus(outsideTop50.id).success, false);
+    assert.equal(x.manager.claimFlagpoleBonus(finalist.id).success, false);
+    for (let index = 0; index < 25; index++) {
+      x.manager.setPipeReady(finalist.id, true, index);
+      const payload = x.manager.getPipeQuestPayload(finalist.id);
+      assert.equal(payload.question?.sort_order, index + 1);
+      assert.equal(payload.question?.correct_option, null);
+      const key = level2QuestionBank[index].correct_option;
+      const result = x.manager.submitPipeQuestAnswer(finalist.id, index, payload.question!.id, key);
+      assert.equal(result.isCorrect, true);
+      assert.equal(result.completedPipes, index + 1);
+    }
+    assert.equal(x.db.getPipeQuestProgress(finalist.id, 1).completedPipes, 1);
+    assert.equal(x.db.getPipeQuestProgress(finalist.id, 2).completedPipes, 25);
+    assert.equal(x.db.getPlayerById(finalist.id)?.level1_score, level1Score);
+    assert.ok(x.db.getPlayerById(finalist.id)!.level2_score > 0);
+    assert.equal(x.manager.claimFlagpoleBonus(finalist.id).success, true);
+    assert.equal(x.manager.claimFlagpoleBonus(finalist.id).success, false);
+    assert.equal(x.manager.executeCutoff(3).status, 'COMPLETE');
+    assert.equal(x.db.getPlayerById(finalist.id)?.is_qualified_level3, 1);
+    assert.equal(x.db.getPlayerById(outsideTop50.id)?.is_qualified_level3, 1);
+    x.manager.setPipeReady(outsideTop50.id, true, 1);
+    assert.equal(x.manager.getPipeQuestPayload(outsideTop50.id).question, null);
+    assert.throws(() => x.manager.submitPipeQuestAnswer(outsideTop50.id, 1,
+      x.db.getPipeQuestQuestions(2)[1].id, 'A'), /round has closed/);
+  } finally { x.cleanup(); }
+});
+
+test('host can close Level 1 and start Level 2 for everyone without a top 50 cut-off', () => {
+  const x = fixture();
+  try {
+    const a = player(x.db, 'ALLA');
+    const b = player(x.db, 'ALLB');
+    x.manager.startLevel(1);
+    x.manager.setPipeReady(a.id, true, 0);
+    const first = x.manager.getPipeQuestPayload(a.id).question!;
+    x.manager.submitPipeQuestAnswer(a.id, 0, first.id, 'A');
+    x.manager.showLeaderboard();
+    assert.equal(x.db.getCutoffState(2), null);
+    x.manager.startLevel(2);
+    for (const participant of [a, b]) {
+      x.manager.setPipeReady(participant.id, true, 0);
+      assert.equal(x.manager.getPipeQuestPayload(participant.id).question?.prompt, 'Red flag');
+    }
   } finally { x.cleanup(); }
 });
 
@@ -100,7 +176,7 @@ test('enrolment number allows only one registration across separator variants', 
   } finally { x.cleanup(); }
 });
 
-test('cut-off tie requires sudden death and server rejects spectators', () => {
+test('cut-off tie requires sudden death, then Level 2 opens for all players', () => {
   const x = fixture();
   try {
     const a = player(x.db, 'A'), b = player(x.db, 'B'), c = player(x.db, 'C');
@@ -122,7 +198,8 @@ test('cut-off tie requires sudden death and server rejects spectators', () => {
     x.manager.revealAnswer();
     x.manager.startLevel(2);
     x.manager.openQuestion(3);
-    assert.throws(() => x.manager.submitAnswer(b.id, 3, 'A'), /spectator/);
+    x.manager.setPipeReady(b.id, true);
+    assert.equal(x.manager.submitAnswer(b.id, 3, 'A').isCorrect, true);
   } finally { x.cleanup(); }
 });
 

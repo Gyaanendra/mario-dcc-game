@@ -11,7 +11,6 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
-  const questionStartTime = useRef<number>(Date.now());
   const [pipeIndex, setPipeIndex] = useState<number | null>(null);
   const [closedDemoPipeIndex, setClosedDemoPipeIndex] = useState<number | null>(null);
   const [locallyPaused, setLocallyPaused] = useState(false);
@@ -36,7 +35,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
 
   useEffect(() => {
     if (!canvasRef.current || !avatarId) return;
-    const engine = new GameEngine(canvasRef.current, avatarId === 'luigi' ? 'luigi' : 'mario');
+    const engine = new GameEngine(canvasRef.current, avatarId === 'luigi' ? 'luigi' : 'mario', level === 2 ? 2 : 1);
     engineRef.current = engine;
     engine.start();
     const resize = () => engine.resize();
@@ -58,11 +57,16 @@ export const GameView: React.FC<Props> = ({ socket }) => {
       engine.stop();
       engineRef.current = null;
     };
-  }, [avatarId, send]);
+  }, [avatarId, send, level]);
 
   useEffect(() => {
     engineRef.current?.setWorldLabel(level || 1);
   }, [level]);
+
+  useEffect(() => {
+    engineRef.current?.setFlagpoleEnabled(socket.pipeQuest.totalPipes > 0 &&
+      socket.pipeQuest.completedPipes >= socket.pipeQuest.totalPipes);
+  }, [socket.pipeQuest.completedPipes, socket.pipeQuest.totalPipes]);
 
   useEffect(() => {
     if (isConnected && playerId) send({ type: 'CLIENT_PIPE_READY', ready: pipeIndex !== null, pipeIndex });
@@ -78,17 +82,13 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const question = pipeRunQuestion || socket.activeQuestion;
   const questionVisible = !!question && pipeIndex !== null && !socket.isSpectator &&
     (isDemoQuestion || QUESTION_STATES.includes(socket.gameState.game_status));
-  const spectatorLevel = level === 2 && !socket.player?.is_qualified_level2;
   const finalStage = socket.gameState.game_status === 'BOWSER_STAGE';
   const podiumStage = socket.gameState.game_status === 'PODIUM_WINNERS';
-  const stageOverlay = spectatorLevel || finalStage || podiumStage;
+  const stageOverlay = finalStage || podiumStage;
 
   const isHostPaused = socket.gameState.game_status === 'PAUSED';
 
   useEffect(() => {
-    if (questionVisible) {
-      questionStartTime.current = Date.now();
-    }
     engineRef.current?.setExternalPause(questionVisible || stageOverlay || isHostPaused);
   }, [questionVisible, stageOverlay, isHostPaused]);
 
@@ -115,7 +115,8 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const questionIsLive = socket.gameState.game_status === 'QUESTION_ACTIVE';
   const awaitingPipe = questionIsLive && pipeIndex === null && !socket.isSpectator && !socket.myAnswer;
   const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
-  const totalPipes = socket.pipeQuest.totalPipes || 10;
+  const totalPipes = socket.pipeQuest.totalPipes || (level === 2 ? 25 : 10);
+  const levelScore = level === 2 ? socket.player?.level2_score : socket.player?.level1_score;
 
   const handleAnswerSubmit = (key: string) => {
     if (isDemoQuestion) {
@@ -125,18 +126,18 @@ export const GameView: React.FC<Props> = ({ socket }) => {
     }
   };
 
-  return <div ref={containerRef} className="game-shell fixed inset-0 overflow-hidden bg-sky-700 text-white" style={{ touchAction: 'none' }}>
+  return <div ref={containerRef} className="game-shell fixed inset-0 overflow-hidden bg-sky-700 text-white" style={{ touchAction: questionVisible ? 'pan-y' : 'none' }}>
     <canvas ref={canvasRef} className="game-canvas block h-full w-full" style={{ imageRendering: 'pixelated' }} aria-label="Side-scrolling career quest game world" />
 
     <header className="game-hud absolute left-2 right-2 top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/30 bg-slate-950/85 px-3 py-2 shadow-lg backdrop-blur-sm sm:left-4 sm:right-4 sm:top-4 sm:px-5">
       <div className="flex items-center gap-3">
         <span className="font-pixel text-[10px] text-yellow-300 sm:text-xs">MARIO QUEST</span>
         <span className="hidden text-sm text-slate-200 sm:inline font-bold">{socket.player?.name}</span>
-        <span className="rounded bg-green-700/80 px-2 py-1 text-xs font-bold">LEVEL {socket.gameState.current_level || 1}</span>
+        <span className="rounded bg-green-700/80 px-2 py-1 text-xs font-bold">WORLD {level === 2 ? '2-1' : '1-1'}</span>
         <span className="rounded bg-sky-800/80 px-2 py-1 text-xs font-bold">PILLARS: {socket.pipeQuest.completedPipes}/{totalPipes}</span>
       </div>
       <div className="flex items-center gap-3 text-xs sm:text-sm">
-        <span className="font-bold text-yellow-300 font-pixel text-xs sm:text-sm">★ {socket.player?.level1_score ?? 0} COINS</span>
+        <span className="font-bold text-yellow-300 font-pixel text-xs sm:text-sm">★ {levelScore ?? 0} COINS</span>
         <span className={pipeIndex !== null ? 'text-green-300 font-bold' : 'text-white/80'}>{pipeIndex !== null ? `● PILLAR ${pipeIndex + 1}` : '○ FIND NEXT PILLAR'}</span>
         <span title={socket.isConnected ? 'Connected' : 'Reconnecting'}>{socket.isConnected ? <Wifi size={17} className="text-green-300" /> : <WifiOff size={17} className="text-red-300" />}</span>
       </div>
@@ -150,9 +151,9 @@ export const GameView: React.FC<Props> = ({ socket }) => {
     </div>
 
     <div className="game-caption absolute bottom-4 left-1/2 z-10 w-[min(90vw,700px)] -translate-x-1/2 rounded-xl border border-white/30 bg-slate-950/80 px-4 py-2 text-center text-xs font-semibold shadow-lg sm:text-sm">
-      {socket.isSpectator || spectatorLevel ? 'Spectator mode — watch the projector for the next stage.' :
+      {socket.isSpectator ? 'Spectator mode — watch the projector for the next stage.' :
         awaitingPipe ? `Question live · ${socket.remainingSeconds}s left · jump onto a pillar to unlock it!` :
-        isPipeRun && totalPipes > 0 && socket.pipeQuest.completedPipes >= totalPipes ? `All 10 pillars solved (${socket.pipeQuest.correctCount}/${totalPipes} correct)! Run right to touch the flagpole and claim the speed bonus!` :
+        isPipeRun && totalPipes > 0 && socket.pipeQuest.completedPipes >= totalPipes ? `All ${totalPipes} pillars solved (${socket.pipeQuest.correctCount}/${totalPipes} correct)! Run right to touch the flagpole and claim the finish bonus!` :
         isPipeRun && pipeIndex !== null && pipeIndex < socket.pipeQuest.nextPipeIndex ? `Pillar ${pipeIndex + 1} cleared · run to Pillar ${socket.pipeQuest.nextPipeIndex + 1}.` :
         isPipeRun && pipeIndex !== null && pipeIndex > socket.pipeQuest.nextPipeIndex ? `Your next unsolved question is at Pillar ${socket.pipeQuest.nextPipeIndex + 1}.` :
         isPipeRun && pipeIndex !== null ? questionVisible ? 'Answer this question to earn coins!' : 'Loading question…' :
@@ -176,6 +177,12 @@ export const GameView: React.FC<Props> = ({ socket }) => {
         </div>
         <h2 id="pipe-question" className="mt-4 text-xl font-black leading-snug sm:text-2xl">{question.prompt}</h2>
         <p className="mt-2 text-xs text-sky-200">100 base coins + speed bonus for fast answers!</p>
+
+        {level === 2 && question.category === 'RESUME_CASE' && <details className="mt-4 rounded-xl border border-sky-400/60 bg-sky-950/70 p-3" open>
+          <summary className="cursor-pointer font-bold text-sky-200">View Aditya’s corrected resume</summary>
+          <img src="/images/level2-aditya-resume.png" alt="Corrected resume for the Level 2 questions" loading="lazy" decoding="async" className="mt-3 w-full rounded bg-white" />
+          <a href="/images/level2-aditya-resume.png" target="_blank" rel="noreferrer" className="mt-2 inline-block min-h-11 rounded-lg border border-sky-300 px-3 py-2 text-sm font-bold text-sky-200 underline">Open full-size resume</a>
+        </details>}
         
         {isDemoQuestion && socket.pipeQuestPending && <p className="mt-3 rounded-lg border border-yellow-500 bg-yellow-950 p-2 text-sm text-yellow-200">Checking answer…</p>}
 
@@ -233,7 +240,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
               <p className="rounded-lg bg-purple-950 p-3 font-semibold">Which offer do you choose, what trade-off do you accept, and what two things do you verify before signing?</p>
               <p className="text-center text-yellow-200">{socket.gameState.speaker_id === playerId ? 'YOUR TURN' : 'Speaker clock'} · {Math.floor(socket.speakerRemainingMs / 60000)}:{String(Math.ceil(socket.speakerRemainingMs / 1000) % 60).padStart(2, '0')}</p>
             </div>}
-          </> : <><h2 className="font-pixel text-lg text-yellow-300">SPECTATOR MODE</h2><p className="mt-4 text-base">Level 2 is for the top 50 qualifiers. Your score is saved; follow the next stage on the projector.</p></>}
+          </> : null}
       </section>
     </div>}
 
@@ -257,13 +264,13 @@ export const GameView: React.FC<Props> = ({ socket }) => {
       <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/75 p-4 animate-fade-in">
         <div className="rounded-2xl border-4 border-yellow-400 bg-slate-900 p-6 text-center max-w-md w-full shadow-2xl space-y-4">
           <Trophy size={48} className="text-yellow-400 mx-auto animate-bounce" />
-          <h2 className="font-pixel text-xl text-yellow-300">WORLD 1-1 CLEARED!</h2>
-          <p className="text-sm text-green-300 font-bold">★ FLAGPOLE REACHED · SPEED BONUS CLAIMED!</p>
+          <h2 className="font-pixel text-xl text-yellow-300">WORLD {level === 2 ? '2-1' : '1-1'} CLEARED!</h2>
+          <p className="text-sm text-green-300 font-bold">★ FLAGPOLE REACHED · FINISH BONUS CLAIMED!</p>
           <p className="text-xs text-slate-300">
-            You completed the level! Look up at the big projector screen to see your live ranking in the top 50.
+            You completed Level {level}! Look up at the projector to see your live ranking {level === 2 ? 'for the top 10 final' : 'and get ready for Level 2, which everyone can play'}.
           </p>
           <div className="p-3 bg-black/60 rounded-xl border border-yellow-500/40 font-mono text-sm">
-            Total Coins: <span className="text-yellow-300 font-bold text-lg font-pixel">{socket.player?.level1_score ?? 0}</span>
+            Level {level} Coins: <span className="text-yellow-300 font-bold text-lg font-pixel">{levelScore ?? 0}</span>
           </div>
           <button onClick={resetRun} className="min-h-12 w-full rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-sm">
             Re-run level for fun
