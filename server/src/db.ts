@@ -110,6 +110,16 @@ export class DatabaseManager {
         FOREIGN KEY(question_id) REFERENCES questions(id)
       );
 
+      CREATE TABLE IF NOT EXISTS flagpole_finishes (
+        player_id TEXT NOT NULL,
+        level INTEGER NOT NULL,
+        bonus INTEGER NOT NULL,
+        finish_order INTEGER NOT NULL,
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(player_id, level),
+        FOREIGN KEY(player_id) REFERENCES players(id)
+      );
+
       CREATE TABLE IF NOT EXISTS judge_scores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         finalist_id TEXT NOT NULL,
@@ -320,8 +330,8 @@ export class DatabaseManager {
     return this.db.prepare('SELECT * FROM questions WHERE is_practice = 1 LIMIT 1').get() as unknown as Question | undefined;
   }
 
-  getPipeQuestQuestions(): Question[] {
-    return this.getQuestionsForLevel(1).slice(0, 10);
+  getPipeQuestQuestions(level: number = 1): Question[] {
+    return this.getQuestionsForLevel(level).filter(q => !q.is_practice && q.category !== 'SUDDEN_DEATH').slice(0, 10);
   }
 
   getPipeQuestProgress(playerId: string): { completedPipes: number; correctCount: number } {
@@ -331,15 +341,70 @@ export class DatabaseManager {
     return row;
   }
 
-  submitPipeQuestAnswer(playerId: string, pipeIndex: number, question: Question, selectedOption: string) {
+  submitPipeQuestAnswer(playerId: string, pipeIndex: number, question: Question, selectedOption: string, responseTimeMs: number = 0) {
     const option = selectedOption.toUpperCase();
     if (!['A', 'B', 'C', 'D'].includes(option) || !(question as any)[`option_${option.toLowerCase()}`])
       throw new Error('Choose one of the available answer options');
     const isCorrect = option === question.correct_option.toUpperCase();
-    this.db.prepare(`INSERT INTO pipe_quest_answers
-      (player_id, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?)`)
-      .run(playerId, pipeIndex, question.id, option, isCorrect ? 1 : 0);
-    return { selectedOption: option, isCorrect };
+    const state = this.getGameState();
+    let coinsAwarded = 0;
+    if (state.current_level >= 1 && isCorrect && !question.is_practice) {
+      const basePoints = question.points || 100;
+      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / 20000));
+      const speedBonus = Math.round(speedFactor * 50);
+      coinsAwarded = basePoints + speedBonus;
+    }
+
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(`INSERT OR REPLACE INTO pipe_quest_answers
+        (player_id, pipe_index, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?, ?)`)
+        .run(playerId, pipeIndex, question.id, option, isCorrect ? 1 : 0);
+
+      this.db.prepare(`INSERT OR REPLACE INTO player_answers
+        (player_id, question_id, selected_option, is_correct, response_time_ms, coins_awarded)
+        VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(playerId, question.id, option, isCorrect ? 1 : 0, Math.floor(responseTimeMs), coinsAwarded);
+
+      if (coinsAwarded > 0) {
+        const scoreCol = state.current_level === 1 ? 'level1_score' : 'level2_score';
+        this.db.prepare(`UPDATE players SET ${scoreCol} = ${scoreCol} + ?, last_ping_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(coinsAwarded, playerId);
+      }
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+
+    return { selectedOption: option, isCorrect, coinsAwarded };
+  }
+
+  hasFlagpoleClaimed(playerId: string, level: number): boolean {
+    const row = this.db.prepare('SELECT 1 FROM flagpole_finishes WHERE player_id = ? AND level = ?').get(playerId, level);
+    return !!row;
+  }
+
+  getFlagpoleFinishCount(level: number): number {
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM flagpole_finishes WHERE level = ?').get(level) as { count: number };
+    return row?.count || 0;
+  }
+
+  recordFlagpoleClaim(playerId: string, level: number, bonus: number, finishOrder: number) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(`INSERT OR REPLACE INTO flagpole_finishes (player_id, level, bonus, finish_order) VALUES (?, ?, ?, ?)`)
+        .run(playerId, level, bonus, finishOrder);
+      if (bonus > 0) {
+        const scoreCol = level === 1 ? 'level1_score' : 'level2_score';
+        this.db.prepare(`UPDATE players SET ${scoreCol} = ${scoreCol} + ?, last_ping_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(bonus, playerId);
+      }
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
   }
 
   getSuddenDeathQuestions(level?: number): Question[] {
@@ -448,20 +513,26 @@ export class DatabaseManager {
 
   // --- Leaderboards & Cut-offs ---
   getLeaderboard(level: number = 1, limit: number = 50) {
-    let orderCol = 'level1_score';
+    let orderCol = 'p.level1_score';
     let where = '';
-    if (level === 2) orderCol = 'level2_score';
-    if (level >= 3) orderCol = 'level3_score';
-    if (level === 2) where = 'WHERE is_qualified_level2 = 1';
-    if (level >= 3) where = 'WHERE is_qualified_level3 = 1';
+    if (level === 2) orderCol = 'p.level2_score';
+    if (level >= 3) orderCol = 'p.level3_score';
+    if (level === 2) where = 'WHERE p.is_qualified_level2 = 1';
+    if (level >= 3) where = 'WHERE p.is_qualified_level3 = 1';
 
     return this.db.prepare(`
-      SELECT id, student_id, name, avatar_id, level1_score, level2_score, level3_score,
-             (level1_score + level2_score) as total_coins,
-             is_qualified_level2, is_qualified_level3
-      FROM players
+      SELECT p.id, p.student_id, p.name, p.avatar_id, p.level1_score, p.level2_score, p.level3_score,
+             (p.level1_score + p.level2_score) as total_coins,
+             p.is_qualified_level2, p.is_qualified_level3,
+             COALESCE(pq.completed_pipes, 0) as completed_pipes
+      FROM players p
+      LEFT JOIN (
+        SELECT player_id, COUNT(*) as completed_pipes
+        FROM pipe_quest_answers
+        GROUP BY player_id
+      ) pq ON pq.player_id = p.id
       ${where}
-      ORDER BY ${orderCol} DESC, id ASC
+      ORDER BY ${orderCol} DESC, p.id ASC
       LIMIT ?
     `).all(limit) as unknown as Player[];
   }

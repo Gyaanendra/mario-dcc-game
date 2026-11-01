@@ -38,10 +38,10 @@ export const ProjectorView: React.FC = () => {
   const visiblePage = leaderboardPage % pageCount;
 
   useEffect(() => {
-    if (gameState.game_status !== 'LEVEL_LEADERBOARD' || pageCount <= 1) return;
-    const interval = window.setInterval(() => setLeaderboardPage(page => page + 1), 8000);
+    if (pageCount <= 1) return;
+    const interval = window.setInterval(() => setLeaderboardPage(page => page + 1), 7000);
     return () => window.clearInterval(interval);
-  }, [gameState.game_status, pageCount]);
+  }, [pageCount]);
 
   // Generate QR code for player join URL
   useEffect(() => {
@@ -199,25 +199,118 @@ export const ProjectorView: React.FC = () => {
           </div>
         )}
 
-        {/* 2. LEVEL INTRO VIEW */}
-        {gameState.game_status === 'LEVEL_INTRO' && (
-          <div className="text-center space-y-4 max-w-2xl animate-fade-in">
-            <div className="font-pixel text-xs text-sky-400 tracking-widest uppercase">
-              LEVEL {gameState.current_level} OF 3
+        {/* 2. LIVE LEADERBOARD (LEVEL 1 & LEVEL 2 ARENA) */}
+        {gameState.current_level >= 1 && gameState.game_status !== 'LOBBY' && gameState.game_status !== 'BOWSER_STAGE' && gameState.game_status !== 'PODIUM_WINNERS' && (!gameState.sudden_death_active || !activeQuestion) && (
+          <div className="w-full max-w-5xl space-y-4 animate-fade-in">
+            {/* Live Arena Header Card */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-red-950/80 via-sky-950/80 to-slate-950/90 border-2 border-yellow-400 p-4 rounded-2xl shadow-2xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-pixel text-[10px] px-2 py-0.5 rounded bg-red-600 text-white animate-pulse">LIVE ARENA</span>
+                  <span className="font-pixel text-xs text-sky-300">WORLD 1-{gameState.current_level}</span>
+                </div>
+                <h1 className="font-pixel text-2xl text-yellow-300 mt-1">
+                  LEVEL {gameState.current_level} — LIVE LEADERBOARD
+                </h1>
+                <p className="text-xs text-slate-200 font-mono mt-0.5">
+                  {gameState.current_level === 1 ? 'Top 50 Qualify for Level 2 · Run to pillars, answer questions, and grab the flagpole!' : 'Top 10 Qualify for Bowser Boss Battle Finale!'}
+                </p>
+              </div>
+
+              {/* Live Metric Stats Badges */}
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-black/60 border border-yellow-500/40 rounded-xl text-center min-w-24">
+                  <div className="text-[10px] font-mono text-zinc-400">PLAYERS</div>
+                  <div className="font-pixel text-lg text-green-300">{counts.connected}/{counts.total}</div>
+                </div>
+                <div className="p-2.5 bg-black/60 border border-yellow-500/40 rounded-xl text-center min-w-28">
+                  <div className="text-[10px] font-mono text-zinc-400">TOP SCORE</div>
+                  <div className="font-pixel text-lg text-yellow-300">
+                    {leaderboard[0] ? (gameState.current_level === 1 ? leaderboard[0].level1_score : leaderboard[0].level2_score) : 0} 🪙
+                  </div>
+                </div>
+              </div>
             </div>
-            <h1 className="font-pixel text-3xl text-yellow-400 drop-shadow-md">
-              {gameState.current_level === 1 && 'LEVEL 1 — START YOUR QUEST'}
-              {gameState.current_level === 2 && 'LEVEL 2 — PIPE RUN'}
-              {gameState.current_level === 3 && "LEVEL 3 — BOWSER'S BOSS CHALLENGE"}
-            </h1>
-            <p className="text-base text-zinc-300 font-sans leading-relaxed">
-              {gameState.current_level === 1 &&
-                'Career and placement fundamentals. Speed and accuracy earn points. Top 50 qualify for Level 2!'}
-              {gameState.current_level === 2 &&
-                'Myth-busting and recruitment red flags. Read every option carefully. Top 10 advance to the Final Boss!'}
-              {gameState.current_level === 3 &&
-                'The ultimate career decision dilemma. Finalists present reasoning live on stage to the faculty panel!'}
-            </p>
+
+            {/* High-Contrast Live Leaderboard Table */}
+            <div className="bg-[#171B30]/95 border-2 border-zinc-700 rounded-2xl p-4 shadow-2xl overflow-hidden">
+              <table className="w-full text-left font-mono">
+                <thead>
+                  <tr className="border-b-2 border-zinc-700 font-pixel text-xs text-yellow-400">
+                    <th className="py-2.5 px-3">RANK</th>
+                    <th className="py-2.5 px-3">EXPLORER</th>
+                    <th className="py-2.5 px-3 text-center">PILLARS CLEARED</th>
+                    <th className="py-2.5 px-3 text-right">COINS / POINTS</th>
+                    <th className="py-2.5 px-3 text-center">STATUS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800 text-xs">
+                  {displayedLeaderboard.slice(visiblePage * 10, visiblePage * 10 + 10).map((player, pageIndex) => {
+                    const idx = visiblePage * 10 + pageIndex;
+                    const score = gameState.current_level === 1 ? player.level1_score : player.level2_score;
+                    const completedPillars = player.completed_pipes ?? 0;
+                    const isFinished = completedPillars >= 10;
+                    return (
+                      <tr
+                        key={player.id}
+                        className={`transition-colors hover:bg-zinc-800/60 ${
+                          idx === 0 ? 'bg-yellow-500/20 font-bold' :
+                          idx === 1 ? 'bg-slate-300/10 font-bold' :
+                          idx === 2 ? 'bg-amber-700/15 font-bold' : ''
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 font-pixel text-xs">
+                          {idx === 0 && <span className="text-yellow-300 flex items-center gap-1.5"><Trophy size={16} /> #1</span>}
+                          {idx === 1 && <span className="text-slate-200">🥈 #2</span>}
+                          {idx === 2 && <span className="text-amber-400">🥉 #3</span>}
+                          {idx > 2 && <span className="text-zinc-400">#{idx + 1}</span>}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2.5">
+                            {player.avatar_id === 'luigi' ? <LuigiSprite size={24} /> : <MarioSprite size={24} />}
+                            <div>
+                              <div className="font-sans font-bold text-white text-sm leading-tight">{player.name}</div>
+                              <div className="text-[10px] text-zinc-400 font-mono">{player.student_id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="inline-flex items-center gap-2">
+                            <div className="w-24 bg-black/60 h-2.5 rounded-full overflow-hidden border border-zinc-700">
+                              <div
+                                className={`h-full transition-all duration-500 ${isFinished ? 'bg-green-400' : 'bg-yellow-400'}`}
+                                style={{ width: `${Math.min(100, (completedPillars / 10) * 100)}%` }}
+                              />
+                            </div>
+                            <span className="font-mono text-xs font-bold text-yellow-300">{completedPillars}/10</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span className="font-pixel text-sm text-yellow-300 font-bold">{score} 🪙</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {isFinished ? (
+                            <span className="px-2.5 py-1 bg-green-950 border border-green-400 rounded-full text-[10px] text-green-300 font-bold inline-flex items-center gap-1">
+                              🏁 FLAGPOLE
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-sky-950 border border-sky-400 rounded-full text-[10px] text-sky-300 font-bold inline-flex items-center gap-1">
+                              🏃 RUNNING
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Page Indicator */}
+              <div className="mt-3 pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400 font-mono">
+                <div>Top 50 advance to Level 2 · Cut-off line at #50</div>
+                <div>Page {visiblePage + 1} of {pageCount} (auto-cycling every 7s)</div>
+              </div>
+            </div>
           </div>
         )}
 

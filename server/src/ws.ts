@@ -59,9 +59,15 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       if (type === 'CLIENT_PIPE_ANSWER') {
         if (!boundPlayerId) throw new Error('Join before answering');
         const result = gameManager.submitPipeQuestAnswer(boundPlayerId, Number(data.pipeIndex),
-          Number(data.questionId), String(data.selectedOption || ''));
+          Number(data.questionId), String(data.selectedOption || ''), Number(data.responseTimeMs || 0));
         send(result);
         send(gameManager.getPipeQuestPayload(boundPlayerId));
+        return;
+      }
+      if (type === 'CLIENT_FLAGPOLE_CLEAR') {
+        if (!boundPlayerId) throw new Error('Join before clearing run');
+        const result = gameManager.claimFlagpoleBonus(boundPlayerId);
+        send(result);
         return;
       }
       if (type === 'CLIENT_HEARTBEAT') { send({ type: 'HEARTBEAT_ACK' }); return; }

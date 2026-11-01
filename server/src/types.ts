@@ -20,7 +20,6 @@ export type QuestionCategory =
   | 'RED FLAG'
   | 'SUDDEN_DEATH';
 
-
 export interface Question {
   id: number;
   level: number;
@@ -50,6 +49,7 @@ export interface Player {
   total_coins: number;
   is_qualified_level2: number;
   is_qualified_level3: number;
+  completed_pipes?: number;
   created_at?: string;
   last_ping_at?: string;
   session_token_hash?: string;
@@ -106,6 +106,7 @@ export type ClientMessageType =
   | 'CLIENT_SUBMIT_ANSWER'
   | 'CLIENT_PIPE_READY'
   | 'CLIENT_PIPE_ANSWER'
+  | 'CLIENT_FLAGPOLE_CLEAR'
   | 'CLIENT_HEARTBEAT';
 
 export type HostMessageType =
@@ -149,5 +150,5 @@ export type ServerBroadcastType =
   | 'PIPE_READY_COUNT'
   | 'PIPE_QUEST_STATE'
   | 'PIPE_QUEST_RESULT'
+  | 'FLAGPOLE_RESULT'
   | 'ERROR_MSG';
-

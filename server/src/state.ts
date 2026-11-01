@@ -4,9 +4,11 @@ import type { Question, Player, GameStateRecord } from './types.js';
 
 const publicPlayer = (player: Player) => ({
   id: player.id, name: player.name, avatar_id: player.avatar_id,
+  student_id: player.student_id,
   level1_score: player.level1_score, level2_score: player.level2_score,
   level3_score: 0, total_coins: player.total_coins,
-  is_qualified_level2: player.is_qualified_level2, is_qualified_level3: player.is_qualified_level3
+  is_qualified_level2: player.is_qualified_level2, is_qualified_level3: player.is_qualified_level3,
+  completed_pipes: player.completed_pipes ?? 0
 });
 const privatePlayer = (player: Player | undefined, showFinalScore: boolean) => {
   if (!player) return null;
@@ -108,27 +110,52 @@ export class GameManager {
   }
 
   getPipeQuestPayload(id: string) {
-    const questions = this.db.getPipeQuestQuestions();
+    const state = this.db.getGameState();
+    const level = state.current_level || 1;
+    const questions = this.db.getPipeQuestQuestions(level);
     const progress = this.db.getPipeQuestProgress(id);
     const pipeIndex = this.pipeIndices.get(id);
-    const question = this.db.getGameState().game_status === 'LOBBY' && pipeIndex !== undefined &&
-      pipeIndex === progress.completedPipes ? questions[pipeIndex] : undefined;
+    const question = pipeIndex !== undefined &&
+      pipeIndex === progress.completedPipes && this.pipeReadyPlayers.has(id) ? questions[pipeIndex] : undefined;
     return { type: 'PIPE_QUEST_STATE', totalPipes: questions.length,
       ...progress, nextPipeIndex: Math.min(progress.completedPipes, questions.length),
       question: question ? { ...publicQuestion(question, false), pipeIndex } : null };
   }
 
-  submitPipeQuestAnswer(id: string, pipeIndex: number, questionId: number, option: string) {
-    if (this.db.getGameState().game_status !== 'LOBBY') throw new Error('The pipe run is closed while the live event is playing');
-    const questions = this.db.getPipeQuestQuestions();
+  submitPipeQuestAnswer(id: string, pipeIndex: number, questionId: number, option: string, responseTimeMs: number = 0) {
+    const state = this.db.getGameState();
+    if (state.game_status === 'ENDED' || state.game_status === 'PODIUM_WINNERS')
+      throw new Error('The event has concluded');
+    const level = state.current_level || 1;
+    const questions = this.db.getPipeQuestQuestions(level);
     const progress = this.db.getPipeQuestProgress(id);
     const question = questions[pipeIndex];
     if (!question || pipeIndex !== progress.completedPipes || question.id !== questionId ||
       this.pipeIndices.get(id) !== pipeIndex || !this.pipeReadyPlayers.has(id))
       throw new Error('Reach the next pipe before answering');
-    const result = this.db.submitPipeQuestAnswer(id, pipeIndex, question, option);
+    const result = this.db.submitPipeQuestAnswer(id, pipeIndex, question, option, responseTimeMs);
+    this.broadcastSyncToAll();
     return { type: 'PIPE_QUEST_RESULT', pipeIndex, question: { ...publicQuestion(question, true), pipeIndex },
       ...result, ...this.db.getPipeQuestProgress(id) };
+  }
+
+  claimFlagpoleBonus(id: string) {
+    const state = this.db.getGameState();
+    const level = state.current_level || 1;
+    const progress = this.db.getPipeQuestProgress(id);
+    const totalPipes = this.db.getPipeQuestQuestions(level).length;
+    if (progress.completedPipes < totalPipes) {
+      return { type: 'FLAGPOLE_RESULT', success: false, message: 'Complete all pillars before grabbing the flagpole' };
+    }
+    const already = this.db.hasFlagpoleClaimed(id, level);
+    if (already) {
+      return { type: 'FLAGPOLE_RESULT', success: false, alreadyClaimed: true };
+    }
+    const finishOrder = this.db.getFlagpoleFinishCount(level) + 1;
+    const bonus = finishOrder <= 3 ? 200 : finishOrder <= 10 ? 150 : 100;
+    this.db.recordFlagpoleClaim(id, level, bonus, finishOrder);
+    this.broadcastSyncToAll();
+    return { type: 'FLAGPOLE_RESULT', success: true, bonus, finishOrder };
   }
 
   private remainingMs(state: GameStateRecord) {

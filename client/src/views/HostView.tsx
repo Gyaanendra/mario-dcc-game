@@ -82,10 +82,16 @@ export const HostView: React.FC = () => {
             <p className="text-sm text-slate-200">Scoring: 100 points per correct answer plus up to 20 speed points. Level 2 starts fresh. Finalists are judged separately.</p>
             <p className="text-sm text-sky-200">Ask players to stand on a pipe before opening a question. The header shows how many are ready.</p>
             <div className="grid sm:grid-cols-3 gap-3">
-              <button onClick={() => startLevel(1)} disabled={gameState.game_status !== 'LOBBY'} className="event-button bg-red-600 disabled:opacity-40">Start Level 1</button>
-              <button onClick={() => startLevel(2)} disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE'} className="event-button bg-blue-600 disabled:opacity-40">Start Level 2</button>
-              <button onClick={() => send({ type: 'HOST_START_BOWSER_STAGE' })} disabled={cutoff?.level !== 3 || cutoff.status !== 'COMPLETE'} className="event-button bg-purple-700 disabled:opacity-40">Start Boss Stage</button>
+              <button onClick={() => startLevel(1)} disabled={gameState.game_status !== 'LOBBY'} className="event-button bg-red-600 font-pixel text-xs py-3 disabled:opacity-40">▶ Start Level 1</button>
+              <button onClick={() => startLevel(2)} disabled={cutoff?.level !== 2 || cutoff.status !== 'COMPLETE'} className="event-button bg-blue-600 font-pixel text-xs py-3 disabled:opacity-40">▶ Start Level 2</button>
+              <button onClick={() => send({ type: 'HOST_START_BOWSER_STAGE' })} disabled={cutoff?.level !== 3 || cutoff.status !== 'COMPLETE'} className="event-button bg-purple-700 font-pixel text-xs py-3 disabled:opacity-40">▶ Bowser Boss Stage</button>
             </div>
+            {gameState.current_level === 1 && gameState.game_status !== 'LOBBY' && (
+              <div className="p-3 bg-green-950/80 border border-green-500 rounded-lg text-sm text-green-200">
+                <span className="font-bold text-yellow-300">● LEVEL 1 IS LIVE:</span> Players are running through World 1-1 and solving pillar questions. Projector displays live leaderboard.
+                <div className="mt-2 text-xs font-mono text-white">Finished Flagpole: {leaderboard.filter(p => (p.completed_pipes || 0) >= 10).length} / {counts.total} Players</div>
+              </div>
+            )}
             {gameState.current_level <= 2 && <div className="space-y-3 border-t border-slate-600 pt-4">
               <label htmlFor="question-select" className="block font-semibold text-sm">Question to open</label>
               <select id="question-select" value={currentQuestionId ?? ''} onChange={e => setSelectedQuestionId(Number(e.target.value))} className="w-full bg-slate-950 border-2 border-slate-500 rounded-lg p-3 text-sm">

@@ -18,6 +18,7 @@ export interface PlayerData {
   id: string; student_id: string; name: string; avatar_id: string;
   level1_score: number; level2_score: number; level3_score: number;
   total_coins: number; is_qualified_level2: number; is_qualified_level3: number;
+  completed_pipes?: number;
 }
 export interface QuestionData {
   id: number; level: number; category: string; prompt: string;
@@ -38,6 +39,7 @@ export interface PipeQuestResult {
   question: QuestionData & { pipeIndex: number };
   selectedOption: string;
   isCorrect: boolean;
+  coinsAwarded?: number;
   completedPipes: number;
   correctCount: number;
 }
