@@ -23,6 +23,8 @@ export const HostView: React.FC = () => {
   const [tieRound, setTieRound] = useState(1);
   const [playerSearch, setPlayerSearch] = useState('');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'level1' | 'level2' | 'finalists'>('all');
+  const [l1CutoffCount, setL1CutoffCount] = useState<number>(30);
+  const [l2CutoffCount, setL2CutoffCount] = useState<number>(10);
 
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
@@ -151,14 +153,14 @@ export const HostView: React.FC = () => {
                   onClick={() => setPlayerFilter('level1')}
                   className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level1' ? 'bg-yellow-400 text-black' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  Outside Top 50 ({leaderboard.filter(p => !p.is_qualified_level2).length})
+                  Outside Cutoff ({leaderboard.filter(p => !p.is_qualified_level2).length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setPlayerFilter('level2')}
                   className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${playerFilter === 'level2' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  Level 1 Top 50 ({leaderboard.filter(p => p.is_qualified_level2 && !p.is_qualified_level3).length})
+                  L1 Qualified ({leaderboard.filter(p => p.is_qualified_level2 && !p.is_qualified_level3).length})
                 </button>
                 <button
                   type="button"
@@ -197,6 +199,7 @@ export const HostView: React.FC = () => {
                       <th className="p-3">L1 Points</th>
                       <th className="p-3">L2 Points</th>
                       <th className="p-3">Stage Status</th>
+                      <th className="p-3">Manual Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -234,13 +237,58 @@ export const HostView: React.FC = () => {
                               </span>
                             ) : isL2Qualified ? (
                               <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-mono text-[10px]">
-                                ★ LEVEL 1 TOP 50
+                                ★ QUALIFIED
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-mono text-[10px]">
                                 PLAYING
                               </span>
                             )}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {gameState.current_level === 1 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    send({
+                                      type: 'HOST_SET_PLAYER_QUALIFIED',
+                                      playerId: player.id,
+                                      level: 2,
+                                      qualified: !isL2Qualified
+                                    });
+                                  }}
+                                  title={isL2Qualified ? 'Revoke Level 1 Qualification' : 'Manually Qualify / Advance to Top Cutoff'}
+                                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all shadow-sm ${
+                                    isL2Qualified
+                                      ? 'bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-500/50'
+                                      : 'bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-400/60'
+                                  }`}
+                                >
+                                  {isL2Qualified ? '✖ Remove' : '+ Qualify L1'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    send({
+                                      type: 'HOST_SET_PLAYER_QUALIFIED',
+                                      playerId: player.id,
+                                      level: 3,
+                                      qualified: !isFinalist
+                                    });
+                                  }}
+                                  title={isFinalist ? 'Revoke Finalist Status' : 'Manually Push to Finalist (Bowser Stage)'}
+                                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all shadow-sm ${
+                                    isFinalist
+                                      ? 'bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-500/50'
+                                      : 'bg-purple-700 hover:bg-purple-600 text-white border border-purple-400/60'
+                                  }`}
+                                >
+                                  {isFinalist ? '✖ Remove' : '👑 Make Finalist'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -441,33 +489,6 @@ export const HostView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Cut-off Buttons */}
-                  {gameState.current_level === 1 && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm('End Level 1 and select the top 50 players by score?')) {
-                          send({ type: 'HOST_CUTOFF_L2' });
-                        }
-                      }}
-                      className="event-button bg-purple-700 hover:bg-purple-600 flex items-center justify-center gap-2 text-xs"
-                    >
-                      <CheckCircle2 size={16} /> End L1 & Record Top 50
-                    </button>
-                  )}
-
-                  {gameState.current_level === 2 && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm('End Level 2 and select the top 10 finalists by Level 2 score?')) {
-                          send({ type: 'HOST_CUTOFF_L3' });
-                        }
-                      }}
-                      className="event-button bg-purple-700 hover:bg-purple-600 flex items-center justify-center gap-2 text-xs"
-                    >
-                      <CheckCircle2 size={16} /> End L2 & Select Top 10
-                    </button>
-                  )}
-
                   {/* Show Leaderboard on Projector */}
                   <button
                     onClick={() => send({ type: 'HOST_SHOW_LEADERBOARD' })}
@@ -476,6 +497,100 @@ export const HostView: React.FC = () => {
                     <Trophy size={16} /> Projector Leaderboard
                   </button>
                 </div>
+
+                {/* Level 1 Cut-off Controls */}
+                {gameState.current_level === 1 && (
+                  <div className="p-3.5 bg-purple-950/70 border-2 border-purple-500/70 rounded-xl space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="font-pixel text-xs text-yellow-300">LEVEL 1 CUT-OFF TARGET</span>
+                        <p className="text-[11px] text-slate-300">Set how many top players qualify from Level 1</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setL1CutoffCount(30)}
+                          className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${l1CutoffCount === 30 ? 'bg-yellow-400 text-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                        >
+                          Top 30
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setL1CutoffCount(50)}
+                          className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${l1CutoffCount === 50 ? 'bg-yellow-400 text-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                        >
+                          Top 50
+                        </button>
+                        <span className="text-xs text-slate-400">Custom:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={l1CutoffCount}
+                          onChange={(e) => setL1CutoffCount(Math.max(1, Number(e.target.value) || 1))}
+                          className="w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-center font-mono text-xs text-yellow-300 font-bold outline-none focus:border-yellow-400"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`End Level 1 and select the TOP ${l1CutoffCount} players by score?`)) {
+                          send({ type: 'HOST_CUTOFF_L2', topN: l1CutoffCount, force: true });
+                        }
+                      }}
+                      className="event-button bg-purple-700 hover:bg-purple-600 w-full py-2.5 flex items-center justify-center gap-2 text-xs font-bold shadow-lg"
+                    >
+                      <CheckCircle2 size={16} /> 🏆 End L1 & Record Top {l1CutoffCount} Cutoff
+                    </button>
+                  </div>
+                )}
+
+                {/* Level 2 Cut-off Controls */}
+                {gameState.current_level === 2 && (
+                  <div className="p-3.5 bg-purple-950/70 border-2 border-purple-500/70 rounded-xl space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="font-pixel text-xs text-yellow-300">LEVEL 2 FINALISTS TARGET</span>
+                        <p className="text-[11px] text-slate-300">Set how many finalists advance to Bowser Stage</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setL2CutoffCount(10)}
+                          className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${l2CutoffCount === 10 ? 'bg-yellow-400 text-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                        >
+                          Top 10
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setL2CutoffCount(15)}
+                          className={`px-3 py-1 rounded text-xs font-mono font-bold transition-all ${l2CutoffCount === 15 ? 'bg-yellow-400 text-black shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                        >
+                          Top 15
+                        </button>
+                        <span className="text-xs text-slate-400">Custom:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={l2CutoffCount}
+                          onChange={(e) => setL2CutoffCount(Math.max(1, Number(e.target.value) || 1))}
+                          className="w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-center font-mono text-xs text-yellow-300 font-bold outline-none focus:border-yellow-400"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`End Level 2 and select the TOP ${l2CutoffCount} finalists by Level 2 score?`)) {
+                          send({ type: 'HOST_CUTOFF_L3', topN: l2CutoffCount, force: true });
+                        }
+                      }}
+                      className="event-button bg-purple-700 hover:bg-purple-600 w-full py-2.5 flex items-center justify-center gap-2 text-xs font-bold shadow-lg"
+                    >
+                      <CheckCircle2 size={16} /> 👑 End L2 & Select Top {l2CutoffCount} Finalists
+                    </button>
+                  </div>
+                )}
 
                 {/* Tie / Sudden Death Notification */}
                 {cutoff?.status === 'PENDING' && (

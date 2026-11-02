@@ -214,7 +214,7 @@ export const ProjectorView: React.FC = () => {
                   LEVEL {gameState.current_level} — LIVE LEADERBOARD
                 </h1>
                 <p className="text-xs text-slate-200 font-mono mt-0.5">
-                  {gameState.current_level === 1 ? 'Top 50 earn Level 1 recognition · Everyone plays Level 2!' : 'All players compete for the top 10 Bowser Boss Battle places!'}
+                  {gameState.current_level === 1 ? 'Top qualifiers earn Level 1 recognition · Everyone plays Level 2!' : 'All players compete for the top finalists places!'}
                 </p>
               </div>
 
@@ -313,7 +313,7 @@ export const ProjectorView: React.FC = () => {
 
               {/* Page Indicator */}
               <div className="mt-3 pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400 font-mono">
-                <div>{gameState.current_level === 1 ? 'Top 50 Level 1 recognition · Everyone plays Level 2' : 'Top 10 advance to the Bowser Boss Battle'}</div>
+                <div>{gameState.current_level === 1 ? 'Top qualifiers Level 1 recognition · Everyone plays Level 2' : 'Top finalists advance to the Bowser Boss Battle'}</div>
                 <div>Page {visiblePage + 1} of {pageCount} (auto-cycling every 7s)</div>
               </div>
             </div>
@@ -437,7 +437,7 @@ export const ProjectorView: React.FC = () => {
                 LEVEL {gameState.current_level} LEADERBOARD
               </h2>
               <p className="text-xs font-mono text-zinc-400 mt-0.5">
-                {gameState.current_level === 1 && 'Top 50 Level 1 recognition · Everyone plays Level 2'}
+                {gameState.current_level === 1 && 'Top qualifiers Level 1 recognition · Everyone plays Level 2'}
                 {gameState.current_level === 2 && 'Top 10 Qualify for Bowser Boss Battle Finale'}
               </p>
               <p className="text-sm font-mono text-yellow-200 mt-2">{qualifiedPlayers.length ? `${qualifiedPlayers.length} qualified` : 'Scores pending cut-off'} · Page {visiblePage + 1}/{pageCount}</p>
@@ -479,7 +479,7 @@ export const ProjectorView: React.FC = () => {
                       <td className="py-2 px-3 text-center">
                         {(gameState.current_level === 1 ? player.is_qualified_level2 : player.is_qualified_level3) ? (
                           <span className="px-2 py-0.5 bg-green-600/30 border border-green-500 rounded text-[10px] text-green-300 font-bold">
-                            {gameState.current_level === 1 ? 'TOP 50' : 'FINALIST'}
+                            {gameState.current_level === 1 ? 'QUALIFIED' : 'FINALIST'}
                           </span>
                         ) : (
                           <span className="text-zinc-500 text-[10px]">In Quest</span>

@@ -102,8 +102,12 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         case 'HOST_VOID_QUESTION': gameManager.voidCurrentQuestion(); break;
         case 'HOST_FINISH_LEVEL':
         case 'HOST_SHOW_LEADERBOARD': gameManager.showLeaderboard(); break;
-        case 'HOST_CUTOFF_L2': gameManager.executeCutoff(2); break;
-        case 'HOST_CUTOFF_L3': gameManager.executeCutoff(3); break;
+        case 'HOST_CUTOFF_L2': gameManager.executeCutoff(2, data.topN ? Number(data.topN) : undefined, Boolean(data.force)); break;
+        case 'HOST_CUTOFF_L3': gameManager.executeCutoff(3, data.topN ? Number(data.topN) : undefined, Boolean(data.force)); break;
+        case 'HOST_ADVANCE_PLAYER_LEVEL': gameManager.advancePlayerToLevel(String(data.playerId), Number(data.targetLevel || 2)); break;
+        case 'HOST_SET_PLAYER_QUALIFIED':
+          gameManager.setPlayerQualification(String(data.playerId), Number(data.level || 2), Boolean(data.qualified !== false));
+          break;
         case 'HOST_TRIGGER_SUDDEN_DEATH': gameManager.triggerSuddenDeath(); break;
         case 'HOST_START_BOWSER_STAGE': gameManager.startBowserStage(); break;
         case 'HOST_SELECT_SPEAKER': gameManager.selectSpeaker(String(data.finalist_id)); break;

@@ -498,3 +498,40 @@ test('host-gated question pacing controls pillar unlocks and 40s question timer'
     assert.equal(res2Timeout.completedPipes, 2);
   } finally { x.cleanup(); }
 });
+
+test('custom topN cutoff (e.g. top 30) and manual player qualification', () => {
+  const x = fixture();
+  try {
+    const players = Array.from({ length: 40 }, (_, index) => player(x.db, `TOP30_${index}`));
+    const setScore = x.raw.prepare('UPDATE players SET level1_score = ? WHERE id = ?');
+    players.forEach((p, index) => setScore.run(1000 - index * 10, p.id));
+    x.manager.startLevel(1);
+
+    // Simulate at least one runner answer so hasPipeQuestAnswers is true
+    x.manager.setPipeReady(players[0].id, true, 0);
+    const q = x.manager.getPipeQuestPayload(players[0].id).question!;
+    x.manager.submitPipeQuestAnswer(players[0].id, 0, q.id, 'A');
+
+    // Run cutoff with topN = 30
+    const cutoffRes = x.manager.executeCutoff(2, 30);
+    assert.equal(cutoffRes.status, 'COMPLETE');
+    assert.equal(cutoffRes.qualifiedCount, 30);
+
+    // Player at index 29 (30th) is qualified
+    assert.equal(x.db.getPlayerById(players[29].id)?.is_qualified_level2, 1);
+    // Player at index 30 (31st) is not qualified
+    assert.equal(x.db.getPlayerById(players[30].id)?.is_qualified_level2, 0);
+
+    // Host manually qualifies player at index 30 (push to next level)
+    x.manager.setPlayerQualification(players[30].id, 2, true);
+    assert.equal(x.db.getPlayerById(players[30].id)?.is_qualified_level2, 1);
+
+    // Host manually revokes player at index 0
+    x.manager.setPlayerQualification(players[0].id, 2, false);
+    assert.equal(x.db.getPlayerById(players[0].id)?.is_qualified_level2, 0);
+
+    // Host manually pushes player to Level 3 Finalist
+    x.manager.setPlayerQualification(players[30].id, 3, true);
+    assert.equal(x.db.getPlayerById(players[30].id)?.is_qualified_level3, 1);
+  } finally { x.cleanup(); }
+});

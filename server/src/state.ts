@@ -451,7 +451,7 @@ export class GameManager {
   showLeaderboard() {
     this.finishLevel();
   }
-  executeCutoff(level: number) {
+  executeCutoff(level: number, topN?: number, force = false) {
     const state = this.db.getGameState();
     if (level !== state.current_level + 1 || ![2, 3].includes(level)) throw new Error('Cut-off does not match the current level');
     if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the question first');
@@ -461,10 +461,25 @@ export class GameManager {
     if (!hasRunnerAnswers && played < total) {
       throw new Error('Complete every scored question in this level before the cut-off');
     }
-    const result = level === 2 ? this.db.executeCutoffLevel2() : this.db.executeCutoffLevel3();
+    const defaultTop = level === 2 ? 50 : 10;
+    const count = (topN && topN > 0) ? topN : defaultTop;
+    const result = level === 2 ? this.db.executeCutoffLevel2(count, force) : this.db.executeCutoffLevel3(count, force);
     this.db.updateGameState({ game_status: 'LEVEL_LEADERBOARD' });
     this.broadcastSyncToAll();
     return result;
+  }
+  setPlayerQualification(playerId: string, level: number, qualified: boolean) {
+    this.db.setPlayerQualification(playerId, level, qualified);
+    this.broadcastSyncToAll();
+  }
+  advancePlayerToLevel(playerId: string, targetLevel: number) {
+    this.broadcastPlayers({
+      type: 'PLAYER_LEVEL_ADVANCE',
+      targetLevel,
+      unlocked: true,
+      reason: `Host manually advanced you to Level ${targetLevel}`
+    });
+    this.broadcastSyncToAll();
   }
   triggerSuddenDeath() {
     const state = this.db.getGameState();

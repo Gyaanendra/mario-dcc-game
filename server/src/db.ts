@@ -642,8 +642,8 @@ export class DatabaseManager {
     `).all(level, limit) as unknown as Player[];
   }
 
-  executeCutoffLevel2(topN = 50) { return this.prepareCutoff(2, topN); }
-  executeCutoffLevel3(topN = 10) { return this.prepareCutoff(3, topN); }
+  executeCutoffLevel2(topN = 50, force = false) { return this.prepareCutoff(2, topN, force); }
+  executeCutoffLevel3(topN = 10, force = false) { return this.prepareCutoff(3, topN, force); }
 
   getCutoffState(level: number): { level: number; targetCount: number; safeIds: string[]; pendingIds: string[]; nextQuestionIndex: number; status: string } | null {
     const row = this.db.prepare('SELECT * FROM cutoff_state WHERE level = ?').get(level) as any;
@@ -651,6 +651,24 @@ export class DatabaseManager {
       level, targetCount: row.target_count, safeIds: JSON.parse(row.safe_ids),
       pendingIds: JSON.parse(row.pending_ids), nextQuestionIndex: row.next_question_index, status: row.status
     } : null;
+  }
+
+  setPlayerQualification(playerId: string, level: number, qualified: boolean) {
+    const column = level === 2 ? 'is_qualified_level2' : 'is_qualified_level3';
+    const val = qualified ? 1 : 0;
+    this.db.prepare(`UPDATE players SET ${column} = ? WHERE id = ?`).run(val, playerId);
+
+    const cutoff = this.getCutoffState(level);
+    if (cutoff) {
+      const safeIds = cutoff.safeIds.filter(id => id !== playerId);
+      if (qualified) safeIds.push(playerId);
+      const pendingIds = cutoff.pendingIds.filter(id => id !== playerId);
+      this.saveCutoff(level, cutoff.targetCount, safeIds, pendingIds, cutoff.nextQuestionIndex, cutoff.status);
+    }
+  }
+
+  clearCutoff(level: number) {
+    this.db.prepare('DELETE FROM cutoff_state WHERE level = ?').run(level);
   }
 
   private saveCutoff(level: number, targetCount: number, safeIds: string[], pendingIds: string[], nextQuestionIndex: number, status: string) {
@@ -675,9 +693,11 @@ export class DatabaseManager {
     }
   }
 
-  private prepareCutoff(level: number, topN: number) {
+  private prepareCutoff(level: number, topN: number, force = false) {
     const existing = this.getCutoffState(level);
-    if (existing) return { qualifiedCount: existing.safeIds.length, pendingCount: existing.pendingIds.length, status: existing.status };
+    if (existing && !force && existing.targetCount === topN) {
+      return { qualifiedCount: existing.safeIds.length, pendingCount: existing.pendingIds.length, status: existing.status };
+    }
     const scoreColumn = level === 2 ? 'level1_score' : 'level2_score';
     const rows = this.db.prepare(`SELECT id, ${scoreColumn} AS score FROM players ORDER BY score DESC, id ASC`).all() as { id: string; score: number }[];
     if (!rows.length) throw new Error('No players available for cut-off');
