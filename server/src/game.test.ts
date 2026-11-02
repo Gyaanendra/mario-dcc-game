@@ -437,3 +437,64 @@ test('resetGame preserves players on normal reset and wipes players on factory r
     assert.equal(x.db.getPlayerById(p2.id), undefined);
   } finally { x.cleanup(); }
 });
+
+test('host-gated question pacing controls pillar unlocks and 40s question timer', () => {
+  const x = fixture();
+  try {
+    assert.equal(x.db.installLevel1Questions(level1QuestionBank), 'installed');
+    // Verify all 15 Level 1 questions have 40s timer
+    for (const q of level1QuestionBank) {
+      assert.equal(q.time_limit_sec, 40);
+    }
+    // Verify all 25 Level 2 questions have 40s timer
+    for (const q of level2QuestionBank) {
+      assert.equal(q.time_limit_sec, 40);
+    }
+
+    const p = player(x.db, 'GATED_TEST');
+    // Start Level 1 in HOST_GATED mode
+    x.manager.startLevel(1, 'HOST_GATED');
+    const state1 = x.db.getGameState();
+    assert.equal(state1.pipe_pacing_mode, 'HOST_GATED');
+    assert.equal(state1.max_allowed_pipe_index, 0);
+
+    // Pillar 1 is allowed
+    x.manager.setPipeReady(p.id, true, 0);
+    const p1Payload = x.manager.getPipeQuestPayload(p.id);
+    assert.ok(p1Payload.question);
+    assert.equal(p1Payload.question?.pipeIndex, 0);
+    assert.equal(p1Payload.isPacingLocked, false);
+
+    // Answer Pillar 1
+    const res1 = x.manager.submitPipeQuestAnswer(p.id, 0, p1Payload.question.id, 'B');
+    assert.equal(res1.isCorrect, true);
+    assert.equal(res1.completedPipes, 1);
+
+    // Player now attempts Pillar 2 before host unlocks it
+    x.manager.setPipeReady(p.id, true, 1);
+    const p2PayloadBefore = x.manager.getPipeQuestPayload(p.id);
+    // Question is withheld because host has not unlocked Pillar 2
+    assert.equal(p2PayloadBefore.question, null);
+    assert.equal(p2PayloadBefore.isPacingLocked, true);
+    assert.throws(
+      () => x.manager.submitPipeQuestAnswer(p.id, 1, 999, 'A'),
+      /Wait for the host to discuss and unlock this question/
+    );
+
+    // Host discusses Question 1 and unlocks Pillar 2!
+    x.manager.unlockNextPipe();
+    assert.equal(x.db.getGameState().max_allowed_pipe_index, 1);
+
+    // Pillar 2 is now unlocked for player
+    const p2PayloadAfter = x.manager.getPipeQuestPayload(p.id);
+    assert.ok(p2PayloadAfter.question);
+    assert.equal(p2PayloadAfter.question?.pipeIndex, 1);
+    assert.equal(p2PayloadAfter.isPacingLocked, false);
+
+    // Timeout submission is recorded as incorrect with 0 coins
+    const res2Timeout = x.manager.submitPipeQuestAnswer(p.id, 1, p2PayloadAfter.question.id, 'TIMEOUT');
+    assert.equal(res2Timeout.isCorrect, false);
+    assert.equal(res2Timeout.coinsAwarded, 0);
+    assert.equal(res2Timeout.completedPipes, 2);
+  } finally { x.cleanup(); }
+});

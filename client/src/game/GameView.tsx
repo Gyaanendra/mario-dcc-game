@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX, Wifi, WifiOff, Trophy, Sparkles, Search, X, CheckCircle2 } from 'lucide-react';
+import { Maximize2, Pause, Play, RotateCcw, Volume2, VolumeX, Wifi, WifiOff, Trophy, Sparkles, Search, X, CheckCircle2, Lock, Clock } from 'lucide-react';
 import { LevelTransitionOverlay } from './LevelTransitionOverlay';
 import type { SocketHookState } from '../utils/socket';
 import { GameEngine } from './engine';
@@ -23,6 +23,8 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const [levelComplete, setLevelComplete] = useState(false);
   const [isMuted, setIsMuted] = useState(gameAudio.isMuted());
   const [showTouchControls, setShowTouchControls] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(40);
+  const autoSubmittedRef = useRef(false);
   const avatarId = socket.player?.avatar_id;
   const playerId = socket.player?.id;
   const effectiveLevel = socket.gameState.current_level || 1;
@@ -131,6 +133,42 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const demoResult = isDemoQuestion && socket.pipeQuestResult?.pipeIndex === pipeIndex ? socket.pipeQuestResult : null;
   const totalPipes = socket.pipeQuest.totalPipes || (effectiveLevel === 2 ? 25 : 15);
   const levelScore = effectiveLevel === 2 ? socket.player?.level2_score : socket.player?.level1_score;
+  const maxAllowed = socket.pipeQuest.maxAllowedPipeIndex ?? socket.gameState.max_allowed_pipe_index ?? 0;
+  const isHostGated = (socket.pipeQuest.pipePacingMode || socket.gameState.pipe_pacing_mode || 'HOST_GATED') === 'HOST_GATED';
+  const nextPipeIndex = socket.pipeQuest.nextPipeIndex;
+  const isNextPipeLocked = isHostGated && effectiveLevel >= 1 && nextPipeIndex > maxAllowed;
+
+  useEffect(() => {
+    if (!questionVisible || !question || demoResult) {
+      setTimerSeconds(40);
+      autoSubmittedRef.current = false;
+      return;
+    }
+    setTimerSeconds(40);
+    autoSubmittedRef.current = false;
+    const interval = setInterval(() => {
+      setTimerSeconds(prev => {
+        if (isHostPaused) return prev;
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [questionVisible, question?.id, pipeIndex, demoResult, isHostPaused]);
+
+  useEffect(() => {
+    if (timerSeconds === 0 && questionVisible && question && !demoResult && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true;
+      if (selectedOption) {
+        handleAnswerSubmit(selectedOption);
+      } else {
+        handleAnswerSubmit('TIMEOUT');
+      }
+    }
+  }, [timerSeconds, questionVisible, question, demoResult, selectedOption]);
 
   useEffect(() => {
     if (!questionVisible || !isDemoQuestion || !pipeRunQuestion || demoResult) return;
@@ -184,6 +222,7 @@ export const GameView: React.FC<Props> = ({ socket }) => {
 
     <div className="game-caption absolute bottom-4 left-1/2 z-10 w-[min(90vw,700px)] -translate-x-1/2 rounded-xl border border-white/30 bg-slate-950/80 px-4 py-2 text-center text-xs font-semibold shadow-lg sm:text-sm">
       {socket.isSpectator ? 'Spectator mode — watch the projector for the next stage.' :
+        isPipeRun && (socket.pipeQuest.isPacingLocked || (pipeIndex !== null && isNextPipeLocked)) ? `🔒 Pillar ${(pipeIndex ?? socket.pipeQuest.nextPipeIndex) + 1} is locked by host. Please watch the stage discussion.` :
         awaitingPipe ? `Question live · ${socket.remainingSeconds}s left · jump onto a pillar to unlock it!` :
         isPipeRun && totalPipes > 0 && socket.pipeQuest.completedPipes >= totalPipes ? `All ${totalPipes} pillars solved (${socket.pipeQuest.correctCount}/${totalPipes} correct)! Run right to touch the flagpole and claim the finish bonus!` :
         isPipeRun && pipeIndex !== null && pipeIndex < socket.pipeQuest.nextPipeIndex ? `Pillar ${pipeIndex + 1} cleared · run to Pillar ${socket.pipeQuest.nextPipeIndex + 1}.` :
@@ -229,11 +268,30 @@ export const GameView: React.FC<Props> = ({ socket }) => {
               <h2 id="pipe-question" className="mt-3 text-base sm:text-xl font-black leading-snug sm:leading-normal text-white">
                 {question.prompt}
               </h2>
-              <div className="mt-1 flex items-center gap-2 text-xs text-sky-200">
-                <span>★ 100 base coins + speed bonus</span>
-                {questionIsLive && socket.remainingSeconds > 0 && (
-                  <span className="font-mono text-yellow-300">· ⏱ {socket.remainingSeconds}s</span>
-                )}
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                <span className="text-sky-200">★ 100 base coins + speed bonus</span>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-xs border ${
+                  timerSeconds <= 10
+                    ? 'border-red-500 bg-red-950/80 text-red-300 animate-pulse'
+                    : timerSeconds <= 20
+                    ? 'border-amber-400 bg-amber-950/80 text-yellow-300'
+                    : 'border-green-400 bg-green-950/80 text-green-300'
+                }`}>
+                  <Clock size={13} className={timerSeconds <= 10 ? 'animate-spin' : ''} />
+                  <span>⏱ {timerSeconds}s</span>
+                </div>
+              </div>
+              <div className="mt-2 w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                <div
+                  className={`h-full transition-all duration-1000 ease-linear rounded-full ${
+                    timerSeconds <= 10
+                      ? 'bg-red-500 animate-pulse'
+                      : timerSeconds <= 20
+                      ? 'bg-amber-400'
+                      : 'bg-green-400'
+                  }`}
+                  style={{ width: `${Math.max(0, Math.min(100, (timerSeconds / 40) * 100))}%` }}
+                />
               </div>
 
               {/* 3. Reference Image Presentation */}
@@ -361,13 +419,33 @@ export const GameView: React.FC<Props> = ({ socket }) => {
                 {question.explanation && (
                   <p className="mt-1.5 text-slate-100 text-xs sm:text-sm leading-relaxed">{question.explanation}</p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => { setClosedDemoPipeIndex(pipeIndex); socket.clearPipeQuestResult(); }}
-                  className="mt-3 min-h-11 w-full rounded-lg bg-green-600 hover:bg-green-500 font-pixel text-xs text-white shadow-md active:scale-98 transition-all"
-                >
-                  {pipeIndex! + 1 >= totalPipes ? 'ALL PILLARS CLEARED! RUN TO FLAGPOLE 🚩' : `CONTINUE TO PILLAR ${pipeIndex! + 2} ▶`}
-                </button>
+                {isNextPipeLocked ? (
+                  <div className="mt-3 p-3 bg-amber-950/80 border border-amber-500/80 rounded-xl text-center space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-yellow-300 font-pixel text-xs">
+                      <Lock size={15} className="text-yellow-400" />
+                      STAGE DISCUSSION IN PROGRESS
+                    </div>
+                    <p className="text-xs text-slate-200 leading-relaxed">
+                      Question {pipeIndex! + 1} submitted! The host is discussing this question on stage. Pillar {pipeIndex! + 2} will unlock when the host advances.
+                    </p>
+                    <button
+                      type="button"
+                      disabled
+                      className="min-h-11 w-full rounded-lg bg-slate-900/90 text-yellow-400/80 font-pixel text-xs border border-yellow-500/40 cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Clock size={14} className="animate-spin text-yellow-400" />
+                      WAITING FOR HOST TO ADVANCE (PILLAR {pipeIndex! + 2} LOCKED)
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setClosedDemoPipeIndex(pipeIndex); socket.clearPipeQuestResult(); }}
+                    className="mt-3 min-h-11 w-full rounded-lg bg-green-600 hover:bg-green-500 font-pixel text-xs text-white shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
+                  >
+                    {pipeIndex! + 1 >= totalPipes ? 'ALL PILLARS CLEARED! RUN TO FLAGPOLE 🚩' : `CONTINUE TO PILLAR ${pipeIndex! + 2} ▶`}
+                  </button>
+                )}
               </div>
             )}
           </section>

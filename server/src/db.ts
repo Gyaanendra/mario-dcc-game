@@ -48,7 +48,9 @@ export class DatabaseManager {
         speaker_deadline_at INTEGER,
         speaker_remaining_ms INTEGER DEFAULT 120000,
         speaker_running INTEGER DEFAULT 0,
-        results_verified INTEGER DEFAULT 0
+        results_verified INTEGER DEFAULT 0,
+        max_allowed_pipe_index INTEGER DEFAULT 0,
+        pipe_pacing_mode TEXT DEFAULT 'FREE_RUN'
       );
 
       CREATE TABLE IF NOT EXISTS players (
@@ -166,7 +168,8 @@ export class DatabaseManager {
       game_state: {
         deadline_at: 'INTEGER', remaining_ms: 'INTEGER DEFAULT 0', paused_at: 'INTEGER',
         speaker_id: 'TEXT', speaker_deadline_at: 'INTEGER', speaker_remaining_ms: 'INTEGER DEFAULT 120000',
-        speaker_running: 'INTEGER DEFAULT 0', results_verified: 'INTEGER DEFAULT 0'
+        speaker_running: 'INTEGER DEFAULT 0', results_verified: 'INTEGER DEFAULT 0',
+        max_allowed_pipe_index: 'INTEGER DEFAULT 0', pipe_pacing_mode: "TEXT DEFAULT 'FREE_RUN'"
       },
       players: { session_token_hash: 'TEXT' },
       questions: { is_practice: 'INTEGER DEFAULT 0', image_url: 'TEXT' }
@@ -239,6 +242,16 @@ export class DatabaseManager {
     this.db.prepare(sql).run(...values);
   }
 
+  setAllowedPipeIndex(index: number) {
+    this.db.prepare('UPDATE game_state SET max_allowed_pipe_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+      .run(Math.max(0, index));
+  }
+
+  setPacingMode(mode: 'HOST_GATED' | 'FREE_RUN') {
+    this.db.prepare('UPDATE game_state SET pipe_pacing_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+      .run(mode);
+  }
+
   resetGame(wipePlayers: boolean = false) {
     this.db.exec(`
       UPDATE game_state SET
@@ -255,6 +268,8 @@ export class DatabaseManager {
         speaker_remaining_ms = 120000,
         speaker_running = 0,
         results_verified = 0,
+        max_allowed_pipe_index = 0,
+        pipe_pacing_mode = 'FREE_RUN',
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1;
 
@@ -424,14 +439,16 @@ export class DatabaseManager {
 
   submitPipeQuestAnswer(playerId: string, pipeIndex: number, question: Question, selectedOption: string, responseTimeMs: number = 0) {
     const option = selectedOption.toUpperCase();
-    if (!['A', 'B', 'C', 'D'].includes(option) || !(question as any)[`option_${option.toLowerCase()}`])
+    const isTimeout = option === 'TIMEOUT';
+    if (!isTimeout && (!['A', 'B', 'C', 'D'].includes(option) || !(question as any)[`option_${option.toLowerCase()}`]))
       throw new Error('Choose one of the available answer options');
-    const isCorrect = option === question.correct_option.toUpperCase();
+    const isCorrect = !isTimeout && option === question.correct_option.toUpperCase();
     const state = this.getGameState();
     let coinsAwarded = 0;
     if (state.current_level >= 1 && isCorrect && !question.is_practice) {
       const basePoints = question.points || 100;
-      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / (question.time_limit_sec * 1000)));
+      const timeLimitMs = (question.time_limit_sec || 40) * 1000;
+      const speedFactor = Math.max(0, 1 - (Math.max(0, responseTimeMs) / timeLimitMs));
       const speedBonus = Math.round(speedFactor * 50);
       coinsAwarded = basePoints + speedBonus;
     }

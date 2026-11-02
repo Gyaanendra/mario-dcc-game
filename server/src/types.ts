@@ -101,6 +101,8 @@ export interface GameStateRecord {
   speaker_remaining_ms: number;
   speaker_running: number;
   results_verified: number;
+  max_allowed_pipe_index?: number;
+  pipe_pacing_mode?: 'HOST_GATED' | 'FREE_RUN';
 }
 
 // WebSocket Protocols
@@ -138,7 +140,10 @@ export type HostMessageType =
   | 'HOST_VERIFY_RESULTS'
   | 'HOST_FINISH_AND_PODIUM'
   | 'HOST_RESET_GAME'
-  | 'HOST_ADVANCE_PLAYER_LEVEL';
+  | 'HOST_ADVANCE_PLAYER_LEVEL'
+  | 'HOST_UNLOCK_NEXT_PIPE'
+  | 'HOST_SET_ALLOWED_PIPE'
+  | 'HOST_SET_PACING_MODE';
 
 export type ServerBroadcastType =
   | 'SYNC_STATE'

@@ -13,6 +13,8 @@ export interface GameState {
   speaker_remaining_ms: number;
   speaker_running: number;
   results_verified: number;
+  max_allowed_pipe_index?: number;
+  pipe_pacing_mode?: 'HOST_GATED' | 'FREE_RUN';
 }
 export interface PlayerData {
   id: string; student_id: string; name: string; avatar_id: string;
@@ -40,6 +42,9 @@ export interface PipeQuestState {
   completedPipes: number;
   correctCount: number;
   nextPipeIndex: number;
+  maxAllowedPipeIndex?: number;
+  pipePacingMode?: 'HOST_GATED' | 'FREE_RUN';
+  isPacingLocked?: boolean;
   question: (QuestionData & { pipeIndex: number }) | null;
 }
 export interface PipeQuestResult {
@@ -224,7 +229,11 @@ export function useGameSocket(viewRole: 'PLAYER' | 'PROJECTOR' | 'HOST' = 'PLAYE
           case 'PIPE_READY_COUNT': setPipeReadyCount(data.count); break;
           case 'PIPE_QUEST_STATE': setPipeQuest({ totalPipes: data.totalPipes,
             completedPipes: data.completedPipes, correctCount: data.correctCount,
-            nextPipeIndex: data.nextPipeIndex, question: data.question }); break;
+            nextPipeIndex: data.nextPipeIndex,
+            maxAllowedPipeIndex: data.maxAllowedPipeIndex,
+            pipePacingMode: data.pipePacingMode,
+            isPacingLocked: data.isPacingLocked,
+            question: data.question }); break;
           case 'PIPE_QUEST_RESULT': setPipeQuestResult(data); setPipeQuestPending(false); break;
           case 'LIVE_SUBMISSION_STATS': setAnswerStats(data.stats); break;
           case 'PLAYER_LEVEL_ADVANCE':

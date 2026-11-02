@@ -220,6 +220,12 @@ export const ProjectorView: React.FC = () => {
 
               {/* Live Metric Stats Badges */}
               <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-black/60 border border-yellow-500/40 rounded-xl text-center min-w-28">
+                  <div className="text-[10px] font-mono text-zinc-400">ACTIVE PILLAR</div>
+                  <div className="font-pixel text-lg text-yellow-300">
+                    #{(gameState.max_allowed_pipe_index ?? 0) + 1} / {totalPipes}
+                  </div>
+                </div>
                 <div className="p-2.5 bg-black/60 border border-yellow-500/40 rounded-xl text-center min-w-24">
                   <div className="text-[10px] font-mono text-zinc-400">PLAYERS</div>
                   <div className="font-pixel text-lg text-green-300">{counts.connected}/{counts.total}</div>

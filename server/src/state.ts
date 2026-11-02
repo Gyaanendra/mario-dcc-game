@@ -126,9 +126,17 @@ export class GameManager {
     const questions = this.db.getPipeQuestQuestions(level);
     const progress = this.db.getPipeQuestProgress(id, state.current_level);
     const pipeIndex = this.pipeIndices.get(id);
+    const isHostGated = state.pipe_pacing_mode === 'HOST_GATED';
+    const maxAllowed = isHostGated ? (state.max_allowed_pipe_index ?? 0) : 999;
+    const isPacingAllowed = state.current_level === 0 || pipeIndex === undefined || pipeIndex <= maxAllowed;
+    const isPacingLocked = state.current_level >= 1 && pipeIndex !== undefined &&
+      pipeIndex === progress.completedPipes && this.pipeReadyPlayers.has(id) && !isPacingAllowed;
     const question = !this.db.getCutoffState(level + 1) && pipeIndex !== undefined &&
-      pipeIndex === progress.completedPipes && this.pipeReadyPlayers.has(id) ? questions[pipeIndex] : undefined;
+      pipeIndex === progress.completedPipes && this.pipeReadyPlayers.has(id) && isPacingAllowed ? questions[pipeIndex] : undefined;
     return { type: 'PIPE_QUEST_STATE', totalPipes: questions.length,
+      maxAllowedPipeIndex: maxAllowed,
+      pipePacingMode: state.pipe_pacing_mode || 'FREE_RUN',
+      isPacingLocked,
       ...progress, nextPipeIndex: Math.min(progress.completedPipes, questions.length),
       question: question ? { ...publicQuestion(question, false), pipeIndex } : null };
   }
@@ -142,6 +150,11 @@ export class GameManager {
     if (this.db.getCutoffState(level + 1)) throw new Error('This round has closed');
     if (!player || level > 2)
       throw new Error('You are watching this round as a spectator');
+    const isHostGated = state.pipe_pacing_mode === 'HOST_GATED';
+    const maxAllowed = isHostGated ? (state.max_allowed_pipe_index ?? 0) : 999;
+    if (state.current_level >= 1 && isHostGated && pipeIndex > maxAllowed) {
+      throw new Error('Wait for the host to discuss and unlock this question');
+    }
     const questions = this.db.getPipeQuestQuestions(level);
     const progress = this.db.getPipeQuestProgress(id, state.current_level);
     const question = questions[pipeIndex];
@@ -154,6 +167,32 @@ export class GameManager {
     this.broadcastSyncToAll();
     return { type: 'PIPE_QUEST_RESULT', pipeIndex, question: { ...publicQuestion(question, true), pipeIndex },
       ...result, ...this.db.getPipeQuestProgress(id, state.current_level) };
+  }
+
+  unlockNextPipe() {
+    const state = this.db.getGameState();
+    const current = state.max_allowed_pipe_index ?? 0;
+    this.db.setAllowedPipeIndex(current + 1);
+    this.broadcastSyncToAll();
+    this.broadcastPipeQuestUpdateToAll();
+  }
+
+  setAllowedPipe(pipeIndex: number) {
+    this.db.setAllowedPipeIndex(pipeIndex);
+    this.broadcastSyncToAll();
+    this.broadcastPipeQuestUpdateToAll();
+  }
+
+  setPacingMode(mode: 'HOST_GATED' | 'FREE_RUN') {
+    this.db.setPacingMode(mode);
+    this.broadcastSyncToAll();
+    this.broadcastPipeQuestUpdateToAll();
+  }
+
+  private broadcastPipeQuestUpdateToAll() {
+    for (const [id, ws] of this.playerSockets) {
+      this.send(ws, this.getPipeQuestPayload(id));
+    }
   }
 
   claimFlagpoleBonus(id: string) {
@@ -300,7 +339,7 @@ export class GameManager {
     return result;
   }
 
-  startLevel(level: number) {
+  startLevel(level: number, pacingMode?: string) {
     const state = this.db.getGameState();
     if (![1, 2].includes(level)) throw new Error('Choose Level 1 or Level 2');
     if (level === 1 && state.game_status !== 'LOBBY') throw new Error('Level 1 can only start from the lobby');
@@ -309,8 +348,15 @@ export class GameManager {
       this.db.getCutoffState(2)?.status !== 'COMPLETE')
       throw new Error('Finish Level 1 and show its leaderboard before starting Level 2');
     if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the current question first');
-    this.db.updateGameState({ current_level: level, game_status: 'LEVEL_INTRO', active_question_id: null,
-      question_start_time: null, deadline_at: null, remaining_ms: 0, sudden_death_active: 0 });
+    const updates: Partial<GameStateRecord> = {
+      current_level: level, game_status: 'LEVEL_INTRO', active_question_id: null,
+      question_start_time: null, deadline_at: null, remaining_ms: 0, sudden_death_active: 0,
+      max_allowed_pipe_index: 0
+    };
+    if (pacingMode === 'HOST_GATED' || pacingMode === 'FREE_RUN') {
+      updates.pipe_pacing_mode = pacingMode;
+    }
+    this.db.updateGameState(updates);
     this.pipeReadyPlayers.clear();
     this.pipeIndices.clear();
     this.pipeReadyAt.clear();

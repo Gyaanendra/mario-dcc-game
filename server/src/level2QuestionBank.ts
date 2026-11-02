@@ -13,7 +13,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "D",
     "explanation": "Interviewers probe leadership claims, and a discovered exaggeration costs far more than an honest, smaller claim. A leaves the false claim in place and hopes nobody checks, B doubles down with a stretched story that collapses at the first follow-up, and C gives up the interview when the error is easily fixable.",
     "points": 100,
-    "time_limit_sec": 75,
+    "time_limit_sec": 40,
     "sort_order": 1
   },
   {
@@ -27,7 +27,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "Headline and skills drive recruiter search and the first impression. A adds connections without adding relevance, B is cosmetic and does not affect search, and D adds length and personal story without keywords or proof of ML skills.",
     "points": 100,
-    "time_limit_sec": 75,
+    "time_limit_sec": 40,
     "sort_order": 2
   },
   {
@@ -41,7 +41,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "D",
     "explanation": "It is specific (role, ID), shows relevant evidence, and makes a small, low-effort ask that opens a conversation. A asks for a referral with no context or evidence, B is flattery with only a vague ask, and C requests a bulk favour that shows no targeting.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 3
   },
   {
@@ -55,7 +55,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "On imbalanced data, accuracy hides failure to catch the minority class: a model that never flags fraud still scores 99%. B, C and D are minor points (how high the number looks, a missing link, a weak verb) and none is the flaw an interviewer will press on. This is a classic critical-thinking trap on resumes.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 4
   },
   {
@@ -69,7 +69,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Recruiters look at activity. B removes a useful asset, C only hides the status while the posts stay visible, and D’s disclaimer does not undo what is visible.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 5
   },
   {
@@ -83,7 +83,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "It shows a method (same request, same data, repeated runs), attributes the gain to specific changes, and states the limits honestly. A rests on someone else’s opinion and B on an unrecorded one-off measurement, so neither can be defended. D refuses a question about the candidate’s own method, which can be answered without revealing confidential details.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 6,
     "image_url": "/images/level2-aditya-resume.png"
   },
@@ -98,7 +98,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "It frames a small pilot as a purposeful, honest step and shows engineering judgment about what scaling needs. B undermines the work by presenting it as a failure to get users, C dodges the question by dismissing the user count, and D postpones scaling to a job offer without showing what it needs.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 7,
     "image_url": "/images/level2-aditya-resume.png"
   },
@@ -113,7 +113,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "D",
     "explanation": "It is now the only bullet with no scope or outcome. A hides a field that may be required, B removes proof, and C would undo the honest grouping of skills.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 8,
     "image_url": "/images/level2-aditya-resume.png"
   },
@@ -128,7 +128,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "It states the target, the real stack and the real stage. A overclaims, C says nothing searchable, and D turns a 3-week internship into a job title he does not hold.",
     "points": 100,
-    "time_limit_sec": 60,
+    "time_limit_sec": 40,
     "sort_order": 9,
     "image_url": "/images/level2-aditya-resume.png"
   },
@@ -143,7 +143,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "Preferred items are flexible and required items are matched, so he should apply honestly. A and D are false claims, and B gives up a viable opportunity over skills that are only preferred.",
     "points": 100,
-    "time_limit_sec": 75,
+    "time_limit_sec": 40,
     "sort_order": 10,
     "image_url": "/images/level2-aditya-resume.png"
   },
@@ -158,7 +158,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Brand and network help, but outcomes depend on eligibility, skills, preparation and performance in each company’s process.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 11
   },
   {
@@ -172,7 +172,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Public descriptions of Bennett’s Career Services say it runs across all four years (training, internships, industry interaction), not only in season. Confirm with the team.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 12
   },
   {
@@ -186,7 +186,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "The company evaluates the resumes it receives and returns its shortlist of eligible candidates.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 13
   },
   {
@@ -200,7 +200,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "Internship quality and PPO conversion are highlighted for Bennett. Conversion depends on performance, not on the internship itself.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 14
   },
   {
@@ -214,7 +214,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Training raises readiness. Offers depend on your performance in each company’s selection process.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 15
   },
   {
@@ -228,7 +228,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "Public descriptions say recruiters share job roles, eligibility and package details, which are communicated to students via the placement committee. Specific university-level rules, if any, must be checked.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 16
   },
   {
@@ -242,7 +242,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Most ATS parse, store and rank resumes. Automatic rejection mostly comes from knockout questions or filters the recruiter sets. Keywords still matter for search and ranking.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 17
   },
   {
@@ -256,7 +256,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "Different roles are evaluated separately, though some companies enforce a cooling-off period for the same role.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 18
   },
   {
@@ -270,7 +270,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "A referral helps with visibility and shortlisting. You still go through the same assessment and interviews.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 19
   },
   {
@@ -284,7 +284,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Paying to get hired is a major red flag for scams. Verify the company, the domain and the sender.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 20
   },
   {
@@ -298,7 +298,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "Interviewers assess approach, clarification of assumptions and handling hints. A silent correct answer reveals little.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 21
   },
   {
@@ -312,7 +312,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Thoughtful questions show interest and preparation. Having none is more likely to hurt.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 22
   },
   {
@@ -326,7 +326,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Search relevance depends mainly on headline, skills, experience and keywords, not connection count alone.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 23
   },
   {
@@ -340,7 +340,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "Bluffing is easy to detect with a follow-up question, and honest learning ability is a positive signal.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 24
   },
   {
@@ -354,7 +354,7 @@ export const level2QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "For freshers, demonstrated skills carry real weight. They do not fully replace experience for roles that require it.",
     "points": 100,
-    "time_limit_sec": 25,
+    "time_limit_sec": 40,
     "sort_order": 25
   }
 ];

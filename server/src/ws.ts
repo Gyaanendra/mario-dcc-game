@@ -87,7 +87,10 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
       }
       if (!isHost) throw new Error('Host authentication required');
       switch (type) {
-        case 'HOST_START_LEVEL': gameManager.startLevel(Number(data.level)); break;
+        case 'HOST_START_LEVEL': gameManager.startLevel(Number(data.level), data.pacing); break;
+        case 'HOST_UNLOCK_NEXT_PIPE': gameManager.unlockNextPipe(); break;
+        case 'HOST_SET_ALLOWED_PIPE': gameManager.setAllowedPipe(Number(data.pipeIndex)); break;
+        case 'HOST_SET_PACING_MODE': gameManager.setPacingMode(data.mode === 'FREE_RUN' ? 'FREE_RUN' : 'HOST_GATED'); break;
         case 'HOST_OPEN_QUESTION': gameManager.openQuestion(Number(data.questionId)); break;
         case 'HOST_PAUSE_TIMER':
         case 'HOST_PAUSE_GAME': gameManager.pauseTimer(); break;

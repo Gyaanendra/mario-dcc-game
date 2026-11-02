@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useGameSocket } from '../utils/socket';
 import { FINAL_FOLLOW_UP } from '../utils/gameContent';
-import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Download, Lock, Pause, Play, RotateCcw, ShieldCheck, Trash2, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Download, Lock, Unlock, Pause, Play, RotateCcw, ShieldCheck, Trash2, Trophy, Users, Wifi, WifiOff } from 'lucide-react';
 
 const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
 export const HostView: React.FC = () => {
   const {
     isConnected, isAuthenticated, gameState, counts, pipeReadyCount, totalPipes, leaderboard, finalists,
-    lastError, clearError, send, speakerRemainingMs,
+    lastError, clearError, send, speakerRemainingMs, pipeQuest,
     cutoff, judgeNames, judgeReadiness, judgeMatrix, authenticateHost
   } = useGameSocket('HOST');
   const [pin, setPin] = useState('');
@@ -27,7 +27,7 @@ export const HostView: React.FC = () => {
   const currentFinalistId = finalists.some(f => f.id === selectedFinalistId) ? selectedFinalistId : finalists[0]?.id || '';
   const currentJudgeName = judgeNames.includes(judgeName) ? judgeName : judgeNames[0] || '';
 
-  const startLevel = (level: number) => send({ type: 'HOST_START_LEVEL', level });
+  const startLevel = (level: number) => send({ type: 'HOST_START_LEVEL', level, pacing: 'HOST_GATED' });
   const exportResults = () => {
     const rows = [['Rank', 'Roll number', 'Display name', 'Level 1 points', 'Level 2 points', 'Final rubric /20', 'Level 1 top 50', 'Finalist'],
       ...leaderboard.map((p, index) => [index + 1, p.student_id, p.name, p.level1_score, p.level2_score,
@@ -338,6 +338,68 @@ export const HostView: React.FC = () => {
                 </p>
               </div>
             )}
+
+            {/* QUESTION PACING & DISCUSSION CONTROL */}
+            {gameState.current_level >= 1 && gameState.game_status !== 'BOWSER_STAGE' && gameState.game_status !== 'PODIUM_WINNERS' && (() => {
+              const currentAllowedPipe = pipeQuest.maxAllowedPipeIndex ?? gameState.max_allowed_pipe_index ?? 0;
+              const isHostGated = (pipeQuest.pipePacingMode || gameState.pipe_pacing_mode || 'HOST_GATED') === 'HOST_GATED';
+              const maxPipes = totalPipes || (gameState.current_level === 2 ? 25 : 15);
+              const playersFinishedCurrent = leaderboard.filter(p => (p.completed_pipes || 0) >= currentAllowedPipe + 1).length;
+
+              return (
+                <div className="p-4 bg-slate-900/90 border-2 border-yellow-400 rounded-xl space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
+                      <span className="font-pixel text-xs text-yellow-300">QUESTION PACING & DISCUSSION</span>
+                    </div>
+                    <span className="text-xs px-2.5 py-0.5 rounded font-mono font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
+                      PILLAR {currentAllowedPipe + 1} OF {maxPipes} UNLOCKED
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {isHostGated
+                      ? `Players have a 40s timer on Question ${currentAllowedPipe + 1}. Once answered, they wait for your stage discussion. Click "Unlock Next Question" below to allow them to attempt Question ${currentAllowedPipe + 2}.`
+                      : 'Free-Run mode is currently active: players can attempt pillars at their own pace.'}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs text-slate-300 bg-slate-950/80 p-2.5 rounded-lg border border-slate-700">
+                    <span>Submissions for Question {currentAllowedPipe + 1}:</span>
+                    <span className="font-mono font-bold text-yellow-300">
+                      {playersFinishedCurrent} / {counts.total} players answered ({counts.total > 0 ? Math.round((playersFinishedCurrent / counts.total) * 100) : 0}%)
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        send({ type: 'HOST_UNLOCK_NEXT_PIPE' });
+                      }}
+                      disabled={currentAllowedPipe + 1 >= maxPipes}
+                      className="event-button bg-green-600 hover:bg-green-500 font-pixel text-xs py-2.5 px-4 flex items-center justify-center gap-2 flex-1 min-w-[200px] disabled:opacity-40"
+                    >
+                      <Unlock size={16} /> Unlock Next Question (Pillar {currentAllowedPipe + 2}) ▶
+                    </button>
+                    {isHostGated ? (
+                      <button
+                        onClick={() => send({ type: 'HOST_SET_PACING_MODE', mode: 'FREE_RUN' })}
+                        className="event-button bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs py-2.5 px-3"
+                      >
+                        Switch to Free-Run
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => send({ type: 'HOST_SET_PACING_MODE', mode: 'HOST_GATED' })}
+                        className="event-button bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs py-2.5 px-3"
+                      >
+                        Switch to Host-Paced
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* LIVE GAME CONTROLS (Pause, Resume, Cut-offs, Show Leaderboard) */}
             {gameState.current_level >= 1 && gameState.game_status !== 'BOWSER_STAGE' && gameState.game_status !== 'PODIUM_WINNERS' && (

@@ -14,7 +14,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "The strongest resume ties each required skill to relevant work and evidence, rather than relying on a skills list or copied wording.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 1
   },
   {
@@ -28,7 +28,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "D",
     "explanation": "A concrete dataset size and three tracked metrics show what was done and what the analysis produced.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 2
   },
   {
@@ -42,7 +42,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "ATS products manage applications, while their screening and ranking features differ across employers and systems.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 3
   },
   {
@@ -56,7 +56,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "A referral can help an application reach the right channel, but it does not bypass evaluation or guarantee selection.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 4
   },
   {
@@ -70,7 +70,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "A PPO is a possible offer before graduation; its exact terms and conditions still matter.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 5
   },
   {
@@ -84,7 +84,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "A stipend compensates an internship, while CTC estimates the employer’s total annual cost for an employee.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 6
   },
   {
@@ -98,7 +98,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Aptitude tests assess reasoning and numerical ability; coding assessments examine programming problem-solving.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 7
   },
   {
@@ -112,7 +112,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "D",
     "explanation": "Technical interviews test role-relevant knowledge, reasoning, and whether candidates understand the work they claim.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 8
   },
   {
@@ -126,7 +126,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "HR interviews can cover motivation, communication, expectations, availability, and professional fit.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 9
   },
   {
@@ -140,7 +140,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "The targeted headline names the student’s field, relevant skills, and internship goal.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 10
   },
   {
@@ -154,7 +154,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "A candidate can demonstrate a skill through work they can explain, including choices, trade-offs, and limitations.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 11
   },
   {
@@ -168,7 +168,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "B",
     "explanation": "A portfolio should feature selected work samples that demonstrate relevant skills and outcomes.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 12
   },
   {
@@ -182,7 +182,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "A",
     "explanation": "Before accepting, verify the role, duties, duration, compensation, expectations, and written terms.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 13
   },
   {
@@ -196,7 +196,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "A pre-placement talk introduces the company, role, eligibility requirements, and recruitment process.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 14
   },
   {
@@ -210,7 +210,7 @@ export const level1QuestionBank: Omit<Question, 'id' | 'is_practice'>[] = [
     "correct_option": "C",
     "explanation": "Thoughtful questions help clarify the role and show interest in the opportunity.",
     "points": 100,
-    "time_limit_sec": 45,
+    "time_limit_sec": 40,
     "sort_order": 15
   }
 ];

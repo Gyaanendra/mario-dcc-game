@@ -31,7 +31,7 @@ export function seedQuestions() {
       correct_option: 'B',
       explanation: 'Git tracks code history locally; GitHub provides remote cloud collaboration, issue tracking, and CI/CD.',
       points: 100,
-      time_limit_sec: 15,
+      time_limit_sec: 40,
       sort_order: 99
     },
     {
@@ -45,7 +45,7 @@ export function seedQuestions() {
       correct_option: 'B',
       explanation: 'Exaggerating timelines or claiming senior years of commercial experience in early undergrad triggers immediate skepticism.',
       points: 100,
-      time_limit_sec: 15,
+      time_limit_sec: 40,
       sort_order: 100
     }
   ];
@@ -56,41 +56,41 @@ export function seedQuestions() {
     option_a: 'Tap one answer option', option_b: 'Refresh the page',
     option_c: 'Close your browser', option_d: 'Ask a friend to answer',
     correct_option: 'A', explanation: 'Tap one option. Practice earns no points.',
-    points: 0, time_limit_sec: 20, sort_order: -1
+    points: 0, time_limit_sec: 40, sort_order: -1
   } as any);
   questions.push(
     { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which resume bullet most clearly shows your contribution?',
       option_a: 'Worked on a website', option_b: 'Built a login page and tested it with 20 users',
       option_c: 'Good at coding', option_d: 'Team player', correct_option: 'B',
-      explanation: 'Specific actions and outcomes make a contribution clear.', points: 0, time_limit_sec: 15, sort_order: 101 },
+      explanation: 'Specific actions and outcomes make a contribution clear.', points: 0, time_limit_sec: 40, sort_order: 101 },
     { level: 2, category: 'SUDDEN_DEATH', prompt: 'A recruiter requests your banking PIN to confirm an interview. What should you do?',
       option_a: 'Share it after checking the logo', option_b: 'Share it only by phone',
       option_c: 'Refuse and verify through official channels', option_d: 'Ask a friend to pay instead', correct_option: 'C',
-      explanation: 'Never share banking credentials with recruiters.', points: 0, time_limit_sec: 15, sort_order: 102 },
+      explanation: 'Never share banking credentials with recruiters.', points: 0, time_limit_sec: 40, sort_order: 102 },
     { level: 1, category: 'SUDDEN_DEATH', prompt: 'What does PPO stand for in an internship context?',
       option_a: 'Pre-Placement Offer', option_b: 'Professional Project Outline',
       option_c: 'Post-Payment Order', option_d: 'Placement Program Option', correct_option: 'A',
-      explanation: 'PPO means Pre-Placement Offer.', points: 0, time_limit_sec: 15, sort_order: 103 },
+      explanation: 'PPO means Pre-Placement Offer.', points: 0, time_limit_sec: 40, sort_order: 103 },
     { level: 2, category: 'SUDDEN_DEATH', prompt: 'An internship offer asks for a registration fee before the interview. Which check comes first?',
       option_a: 'Pay quickly to reserve a slot', option_b: 'Send an OTP as proof of identity',
       option_c: 'Verify the company and role through its official contact details', option_d: 'Forward the fee request to classmates', correct_option: 'C',
-      explanation: 'Verify hiring claims independently before sharing money or sensitive details.', points: 0, time_limit_sec: 15, sort_order: 104 },
+      explanation: 'Verify hiring claims independently before sharing money or sensitive details.', points: 0, time_limit_sec: 40, sort_order: 104 },
     { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which detail makes a project description easier to assess?',
       option_a: 'The number of emojis in the README', option_b: 'Your role, the problem, and a measurable result',
       option_c: 'A list of every language you have heard of', option_d: 'A copied product slogan', correct_option: 'B',
-      explanation: 'Specific work and outcomes help a reviewer understand your contribution.', points: 0, time_limit_sec: 15, sort_order: 105 },
+      explanation: 'Specific work and outcomes help a reviewer understand your contribution.', points: 0, time_limit_sec: 40, sort_order: 105 },
     { level: 2, category: 'SUDDEN_DEATH', prompt: 'A recruiter sends an offer from a personal email address. What is the safest next step?',
       option_a: 'Assume it is genuine because it mentions the company', option_b: 'Post your Aadhaar card in the reply',
       option_c: 'Verify the offer with the company using an independently found official channel', option_d: 'Accept immediately', correct_option: 'C',
-      explanation: 'Independent verification helps catch impersonation and forged offers.', points: 0, time_limit_sec: 15, sort_order: 106 },
+      explanation: 'Independent verification helps catch impersonation and forged offers.', points: 0, time_limit_sec: 40, sort_order: 106 },
     { level: 1, category: 'SUDDEN_DEATH', prompt: 'Which interview answer best handles a question you cannot solve immediately?',
       option_a: 'Explain your assumptions and test an approach aloud', option_b: 'Invent a result',
       option_c: 'Stay silent until time expires', option_d: 'Copy an answer from another tab', correct_option: 'A',
-      explanation: 'Clear reasoning and honest assumptions show how you solve problems.', points: 0, time_limit_sec: 15, sort_order: 107 },
+      explanation: 'Clear reasoning and honest assumptions show how you solve problems.', points: 0, time_limit_sec: 40, sort_order: 107 },
     { level: 2, category: 'SUDDEN_DEATH', prompt: 'What should you compare when choosing between two internships?',
       option_a: 'Only the advertised stipend', option_b: 'Learning, supervision, work, compensation, and written terms',
       option_c: 'Only the company logo', option_d: 'Only the shortest commute', correct_option: 'B',
-      explanation: 'A sound decision weighs the work and mentorship alongside compensation.', points: 0, time_limit_sec: 15, sort_order: 108 }
+      explanation: 'A sound decision weighs the work and mentorship alongside compensation.', points: 0, time_limit_sec: 40, sort_order: 108 }
   );
 
   db.exec('BEGIN IMMEDIATE');
