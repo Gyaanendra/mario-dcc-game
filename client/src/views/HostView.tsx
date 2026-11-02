@@ -423,6 +423,24 @@ export const HostView: React.FC = () => {
                     </button>
                   )}
 
+                  {/* End Current Level & Show Waiting Screen */}
+                  {gameState.game_status !== 'LEVEL_LEADERBOARD' ? (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to end Level ${gameState.current_level}? All player screens will show the "Level Ended / Waiting for Host" screen.`)) {
+                          send({ type: 'HOST_FINISH_LEVEL' });
+                        }
+                      }}
+                      className="event-button bg-rose-700 hover:bg-rose-600 flex items-center justify-center gap-2 text-xs font-bold"
+                    >
+                      <CheckCircle2 size={16} /> 🏁 End Level {gameState.current_level} (Wait Screen)
+                    </button>
+                  ) : (
+                    <div className="px-3 py-2 bg-yellow-500/20 border border-yellow-400 text-yellow-300 font-pixel text-[11px] rounded-lg flex items-center justify-center gap-1.5 text-center">
+                      🏁 LEVEL {gameState.current_level} ENDED (PLAYERS WAITING)
+                    </div>
+                  )}
+
                   {/* Cut-off Buttons */}
                   {gameState.current_level === 1 && (
                     <button

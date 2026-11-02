@@ -100,6 +100,7 @@ export function handleWebSocketConnection(socket: WebSocket, _req: unknown) {
         case 'HOST_LOCK_QUESTION': gameManager.lockQuestion(); break;
         case 'HOST_REVEAL_ANSWER': gameManager.revealAnswer(); break;
         case 'HOST_VOID_QUESTION': gameManager.voidCurrentQuestion(); break;
+        case 'HOST_FINISH_LEVEL':
         case 'HOST_SHOW_LEADERBOARD': gameManager.showLeaderboard(); break;
         case 'HOST_CUTOFF_L2': gameManager.executeCutoff(2); break;
         case 'HOST_CUTOFF_L3': gameManager.executeCutoff(3); break;

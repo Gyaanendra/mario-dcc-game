@@ -442,17 +442,14 @@ export class GameManager {
       remaining_ms: 0, deadline_at: null });
     this.broadcastSyncToAll();
   }
-  showLeaderboard() {
+  finishLevel() {
     const state = this.db.getGameState();
     if (state.game_status === 'QUESTION_ACTIVE') throw new Error('Lock the question first');
-    const played = this.db.getPlayedQuestionIds(state.current_level).length;
-    const total = this.db.countQuestionsInLevel(state.current_level);
-    const hasRunnerAnswers = this.db.hasPipeQuestAnswers(state.current_level);
-    if (!hasRunnerAnswers && played < total) {
-      throw new Error('Complete every scored question in this level before the cut-off');
-    }
     this.db.updateGameState({ game_status: 'LEVEL_LEADERBOARD' });
     this.broadcastSyncToAll();
+  }
+  showLeaderboard() {
+    this.finishLevel();
   }
   executeCutoff(level: number) {
     const state = this.db.getGameState();
@@ -465,6 +462,7 @@ export class GameManager {
       throw new Error('Complete every scored question in this level before the cut-off');
     }
     const result = level === 2 ? this.db.executeCutoffLevel2() : this.db.executeCutoffLevel3();
+    this.db.updateGameState({ game_status: 'LEVEL_LEADERBOARD' });
     this.broadcastSyncToAll();
     return result;
   }

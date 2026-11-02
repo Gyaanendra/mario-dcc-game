@@ -96,6 +96,11 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const question = pipeRunQuestion || socket.activeQuestion;
   const questionVisible = !!question && pipeIndex !== null && !socket.isSpectator &&
     (isDemoQuestion || QUESTION_STATES.includes(socket.gameState.game_status));
+  const isLevelActive = socket.gameState.game_status === 'LEVEL1_ACTIVE' || socket.gameState.game_status === 'LEVEL2_ACTIVE';
+  const isLevelEnded = !isLevelActive && (
+    socket.gameState.game_status === 'LEVEL_LEADERBOARD' ||
+    (socket.cutoff?.level === (effectiveLevel + 1) && (socket.cutoff.status === 'COMPLETE' || socket.cutoff.status === 'PENDING'))
+  );
   const finalStage = socket.gameState.game_status === 'BOWSER_STAGE';
   const podiumStage = socket.gameState.game_status === 'PODIUM_WINNERS';
   const stageOverlay = finalStage || podiumStage;
@@ -103,8 +108,8 @@ export const GameView: React.FC<Props> = ({ socket }) => {
   const isHostPaused = socket.gameState.game_status === 'PAUSED';
 
   useEffect(() => {
-    engineRef.current?.setExternalPause(questionVisible || stageOverlay || isHostPaused);
-  }, [questionVisible, stageOverlay, isHostPaused]);
+    engineRef.current?.setExternalPause(questionVisible || stageOverlay || isHostPaused || isLevelEnded);
+  }, [questionVisible, stageOverlay, isHostPaused, isLevelEnded]);
 
   const resetRun = () => {
     engineRef.current?.reset();
@@ -452,6 +457,63 @@ export const GameView: React.FC<Props> = ({ socket }) => {
         </div>
       );
     })()}
+
+    {/* LEVEL ENDED / WAITING FOR HOST OVERLAY */}
+    {isLevelEnded && !stageOverlay && (
+      <div className="absolute inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/90 backdrop-blur-md p-4 animate-fade-in">
+        <section className="w-full max-w-lg rounded-2xl border-4 border-yellow-400 bg-[#0f172a] p-6 text-center shadow-[0_0_50px_rgba(234,179,8,0.3)] space-y-5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-yellow-400/20 border border-yellow-400/50 text-yellow-300 font-pixel text-xs tracking-wider">
+            🏁 ROUND COMPLETE · RESULTS VERIFIED
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="font-pixel text-2xl sm:text-3xl text-yellow-300 drop-shadow-md">
+              LEVEL {effectiveLevel} ENDED!
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Great run, <span className="font-bold text-white">{socket.player?.name || 'Explorer'}</span>!
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 bg-black/60 p-4 rounded-xl border border-yellow-500/30">
+            <div className="space-y-1 text-center border-r border-slate-700/80 pr-2">
+              <div className="text-[11px] font-mono text-slate-400 uppercase">COINS EARNED</div>
+              <div className="font-pixel text-xl sm:text-2xl text-yellow-400">
+                {levelScore ?? 0} <span className="text-base">🪙</span>
+              </div>
+            </div>
+            <div className="space-y-1 text-center pl-2">
+              <div className="text-[11px] font-mono text-slate-400 uppercase">PILLARS CLEARED</div>
+              <div className="font-pixel text-xl sm:text-2xl text-green-400">
+                {socket.player?.completed_pipes ?? 0} / {totalPipes}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3.5 bg-gradient-to-r from-blue-950/80 to-purple-950/80 border border-blue-400/40 rounded-xl space-y-1.5 text-center">
+            <div className="text-yellow-300 font-pixel text-xs flex items-center justify-center gap-2">
+              <Trophy size={16} className="text-yellow-400" />
+              LOOK AT THE AUDITORIUM PROJECTOR
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              Official rankings and cutoff standings are now being displayed live on the stage screen.
+            </p>
+          </div>
+
+          <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl text-center space-y-2">
+            <div className="flex items-center justify-center gap-2 text-yellow-300 font-pixel text-xs">
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-ping" />
+              WAITING FOR HOST TO START NEXT ROUND
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {effectiveLevel === 1
+                ? 'Level 2 will begin shortly — all players continue playing!'
+                : 'Top 10 finalists will advance to the Bowser Stage!'}
+            </p>
+          </div>
+        </section>
+      </div>
+    )}
 
     {stageOverlay && <div className="absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 sm:p-5">
       <section className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-2xl border-4 border-yellow-300 bg-[#15243b] p-5 text-center shadow-[8px_8px_0_#081325] sm:p-7">
