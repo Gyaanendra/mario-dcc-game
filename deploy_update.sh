@@ -50,3 +50,4 @@ echo "🎮 Play:      https://mario.budcc.tech/play"
 echo "🕹️ Host:      https://mario.budcc.tech/host"
 echo "📽️ Projector: https://mario.budcc.tech/projector"
 echo "======================================================"
+
