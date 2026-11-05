@@ -21,3 +21,4 @@ echo " MARIO CAREER QUEST — LOAD TEST RUNNER"
 echo "======================================================"
 
 npx tsx src/loadTestStages.ts "$@"
+
