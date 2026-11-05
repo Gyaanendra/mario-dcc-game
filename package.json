@@ -10,6 +10,7 @@
     "client:build": "cd client && npm run build",
     "seed": "cd server && npm run seed",
     "test:load": "cd server && npm run test:load",
+    "test:load:stages": "cd server && npm run test:load:stages",
     "test": "cd server && npm test",
     "server:build": "cd server && npm run build",
     "export:fallback": "cd server && npm run export:fallback",

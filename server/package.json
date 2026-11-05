@@ -11,6 +11,7 @@
     "seed": "tsx src/seed.ts",
     "test": "tsx --test src/*.test.ts",
     "test:load": "tsx src/loadTest.ts",
+    "test:load:stages": "tsx src/loadTestStages.ts",
     "export:fallback": "tsx src/exportFallback.ts",
     "backup": "tsx src/backup.ts"
   },
